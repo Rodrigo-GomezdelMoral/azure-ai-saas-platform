@@ -22,11 +22,13 @@ system, spot and enterprise pools, Azure Managed Redis, Cosmos DB, Service Bus, 
 Flex Consumption Function, the alerts and the budget, and the roles each identity holds on the
 landing zone's shared services — the Kubernetes manifests: one base per tenant namespace, three
 tier overlays, and the platform namespace with the Gateway, the metering drain and the KEDA-scaled
-onboarding workers — and the first two modules of the gateway: tenant resolution at the edge
-(`app/tenancy.py`, ADR-002) and quota enforcement before work (`app/quotas.py`, ADR-003), with
-the cross-tenant isolation test started in `tests/test_isolation.py`. The rest of the gateway, the
-onboarding recording, the load-test results and the unit economics arrive with their phases; this
-file is completed in phase 9.
+onboarding workers — and the gateway's data path so far: tenant resolution at the edge
+(`app/tenancy.py`, ADR-002), quota enforcement before work (`app/quotas.py`, ADR-003), metering as
+a Redis Stream drained to Service Bus and folded into Cosmos by the Flex Consumption Function
+(`app/metering.py`, `functions/`, ADR-004) and the per-tenant semantic cache (`app/cache.py`,
+ADR-006), with the cross-tenant isolation test covering five stores and the metering accuracy test
+over a simulated month. The rest of the gateway, the onboarding recording, the load-test results
+and the unit economics arrive with their phases; this file is completed in phase 9.
 
 Validating the manifests without a cluster:
 

@@ -9,10 +9,13 @@ from typing import Any
 
 import pytest
 
+from app.cache import RediSearchStore, SemanticCache
 from app.models import PLANS
 from app.quotas import QuotaGate
 from app.tenancy import TenantResolver, digest_of
+from functions.aggregate import aggregate, apply
 from tests.conftest import Keys, MemoryStore
+from tests.test_metering import FakeContainer, MemoryVectorStore, event, fake_embedder
 
 Probe = Callable[[dict[str, Any]], Awaitable[bool]]
 
@@ -39,12 +42,32 @@ async def quota_bucket(world: dict[str, Any]) -> bool:
     return after != before - quota.estimated_cents
 
 
+async def cached_answer(world: dict[str, Any]) -> bool:
+    cache = SemanticCache(MemoryVectorStore(), fake_embedder(), similarity=0.5)
+    probe = await cache.lookup("globex", "What does Article 10 require?")
+    await cache.remember("globex", "What does Article 10 require?", {"claims": ["globex only"]}, probe.vector)
+    keyed = RediSearchStore(world["redis"])
+    await keyed.put("globex", "d1", "question", '{"claims": []}', probe.vector)
+    leaked_keys = [key for key in await world["redis"].keys("cache:*") if not key.startswith(keyed.prefix("globex"))]
+    return (await cache.lookup("acme", "What does Article 10 require?")).answer is not None or bool(leaked_keys)
+
+
+async def usage_record(world: dict[str, Any]) -> bool:
+    container = FakeContainer()
+    for (_, _, tenant_id, month), delta in aggregate([event("globex", 5).fields()]).items():
+        apply(container, tenant_id, month, delta)
+    seen = {partition for partition, _, _ in container.documents}
+    return "acme" in seen or ("globex", "2026-11", "2026-11") not in container.documents
+
+
 STORES: dict[str, Probe] = {"tenants": tenant_record, "credentials": credential_record, "quota": quota_bucket}
+STORES |= {"cache": cached_answer, "usage": usage_record}
 
 
 @pytest.fixture
 def world(resolver: TenantResolver, store: MemoryStore, keys: Keys, redis: Any, tenants: list[Any]) -> dict[str, Any]:
-    return {"resolver": resolver, "store": store, "keys": keys, "gate": QuotaGate(redis), "tenants": tenants}
+    gate = QuotaGate(redis)
+    return {"resolver": resolver, "store": store, "keys": keys, "gate": gate, "tenants": tenants, "redis": redis}
 
 
 @pytest.mark.parametrize("store_name", sorted(STORES))

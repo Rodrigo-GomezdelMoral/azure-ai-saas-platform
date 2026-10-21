@@ -3,10 +3,21 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from redis.asyncio import Redis
+from redis_entraid.cred_provider import create_from_default_azure_credential
 
+from app.config import Settings
 from app.models import Quota
 
 MONTH_KEY_TTL = 40 * 24 * 3600
+REDIS_SCOPE = "https://redis.azure.com/.default"
+
+
+def redis_client(settings: Settings) -> Redis:
+    """Entra tokens through the workload identity, refreshed by the provider; no access key exists on the cache."""
+    provider = create_from_default_azure_credential((REDIS_SCOPE,))
+    host, port = settings.redis_host, settings.redis_port
+    return Redis(host=host, port=port, ssl=True, credential_provider=provider, decode_responses=True)
+
 
 RESERVE = """
 local bucket, minute, month = KEYS[1], KEYS[2], KEYS[3]

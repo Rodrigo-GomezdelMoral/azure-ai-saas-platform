@@ -12,10 +12,10 @@ explicit_package_bases = true
 namespace_packages = true
 plugins = ["pydantic.mypy"]
 files = ["."]
-exclude = ["console/", "node_modules/"]
+exclude = ["console/", "node_modules/", "functions/function_app.py"]
 
 [[tool.mypy.overrides]]
-module = ["azure.*", "fakeredis.*", "opentelemetry.*"]
+module = ["azure.*", "fakeredis.*", "opentelemetry.*", "redis_entraid.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

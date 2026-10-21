@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -83,13 +84,21 @@ class Credential(BaseModel):
 
 
 class UsageEvent(BaseModel):
+    """One request's usage, written to the stream by the gateway and folded into a BillingPeriod by the Function."""
+
     tenant_id: str
     trace_id: str
+    database: str
+    container: str
     cents: int = Field(ge=0)
     cached: bool = False
     redacted: bool = False
     upstream_ms: int = Field(default=0, ge=0)
     occurred: datetime
+
+    def fields(self) -> dict[Any, Any]:
+        dumped = self.model_dump(mode="json")
+        return {name: int(value) if isinstance(value, bool) else value for name, value in dumped.items()}
 
 
 class BillingPeriod(BaseModel):
