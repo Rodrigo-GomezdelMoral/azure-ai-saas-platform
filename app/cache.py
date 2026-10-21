@@ -77,19 +77,27 @@ class RediSearchStore:
 
 
 class SemanticCache:
-    """Answers a question a tenant already asked; the tenant is part of the index and the key, never a filter."""
+    """Answers a question a tenant already asked; the tenant is part of the index and the key, never a filter.
+
+    The cache is an optimisation: when the embedding service fails, the request proceeds as a miss and nothing is kept.
+    """
 
     def __init__(self, store: VectorStore, embed: Embedder, similarity: float) -> None:
         self.store, self.embed, self.similarity = store, embed, similarity
 
     async def lookup(self, tenant_id: str, question: str) -> Probe:
-        vector = await self.embed(question)
+        try:
+            vector = await self.embed(question)
+        except httpx.HTTPError:
+            return Probe([])
         found = await self.store.nearest(tenant_id, vector)
         if found is None or 1 - found[1] < self.similarity:
             return Probe(vector)
         return Probe(vector, json.loads(found[0]), 1 - found[1])
 
     async def remember(self, tenant_id: str, question: str, answer: dict[str, Any], vector: list[float]) -> None:
+        if not vector:
+            return
         digest = hashlib.sha256(f"{tenant_id}:{question}".encode()).hexdigest()
         await self.store.put(tenant_id, digest, question, json.dumps(answer), vector)
 

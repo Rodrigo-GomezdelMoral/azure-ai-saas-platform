@@ -1,7 +1,8 @@
 """Monthly cost attribution: what each tenant consumed, measured in the application, against what Azure billed, by tag.
 
 The two sources never agree: application metering carries the inference the upstream reported per request, while Cost
-Management bills the shared infrastructure no single tenant causes. The report states both numbers and the gap.
+Management bills the shared infrastructure no single tenant causes. The report states both numbers and the gap. Azure
+bills the nodes in the cluster's node resource group, so the query covers the platform group and its `-nodes` sibling.
 """
 
 import argparse
@@ -139,8 +140,10 @@ async def main() -> None:
         database = cosmos.get_database_client(settings.cosmos_database)
         catalogue = database.get_container_client(settings.tenants_container)
         tenants = [Tenant.model_validate(dict(item)) async for item in catalogue.query_items("SELECT * FROM c")]
-        scope = settings.cosmos_account_id.split("/providers/")[0]
-        rows = await azure_costs(http, credential, scope, args.month)
+        group = settings.cosmos_account_id.split("/providers/")[0]
+        rows: list[CostRow] = []
+        for scope in (group, f"{group}-nodes"):
+            rows += await azure_costs(http, credential, scope, args.month)
         report = render(args.month, reconcile(tenants, await metered(tenants, cosmos, args.month), rows), rows)
     if args.output:
         args.output.write_text(report, encoding="utf-8")

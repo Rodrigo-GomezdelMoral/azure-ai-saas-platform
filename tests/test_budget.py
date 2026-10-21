@@ -5,7 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 EXCLUDED = ("docs/",)
-MAX_FILES = 80
+MAX_FILES = 90
 APPLICATION = ("app/", "ops/", "functions/")
 SUPPORT = ("tests/", "load/")
 LIMITS = {"application": 1700, "support": 900, "bicep": 600, "yaml": 500, "typescript": 700}

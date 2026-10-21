@@ -122,27 +122,40 @@ async def answer(body: Question, request: Request) -> StreamingResponse:
     gateway: Gateway = request.app.state.gateway
     tenant = principal(request).require_tenant()
     telemetry.TENANT.set(tenant.id)
-    decision, reservation = await gateway.quotas.reserve(tenant.id, tenant.quota)
-    if not decision.allowed or reservation is None:
-        raise AccessError(429, f"quota exhausted: {decision.reason}", decision.retry_after)
+    reservation = await reserve(gateway, tenant)
     try:
         prepared = await gateway.privacy.prepare(tenant, body.question)
         probe = await gateway.cache.lookup(tenant.id, prepared.stored)
         if probe.answer is not None:
-            await gateway.quotas.release(reservation)
+            await release(gateway, reservation)
             await gateway.meter.record(usage_event(tenant, 0, True, prepared.entities > 0, 0))
             cached = f"event: verify\ndata: {json.dumps(probe.answer)}\n\n"
             return StreamingResponse(iter([cached]), media_type="text/event-stream", headers={"x-cache": "hit"})
         exchange = await gateway.upstream.answer(prepared.upstream, tenant.isolation.index, body.conversation_id)
     except (RedactionError, UpstreamError):
-        await gateway.quotas.release(reservation)
+        await release(gateway, reservation)
         raise
     events = relay(gateway, tenant, reservation, prepared, probe, exchange)
     return StreamingResponse(events, media_type="text/event-stream", headers={"x-cache": "miss"})
 
 
+async def reserve(gateway: Gateway, tenant: Tenant) -> Reservation | None:
+    """Quota before work. A deployment may switch enforcement off for the noisy-neighbour comparison; nothing else."""
+    if not gateway.settings.enforce_quota:
+        return None
+    decision, reservation = await gateway.quotas.reserve(tenant.id, tenant.quota)
+    if not decision.allowed or reservation is None:
+        raise AccessError(429, f"quota exhausted: {decision.reason}", decision.retry_after)
+    return reservation
+
+
+async def release(gateway: Gateway, held: Reservation | None) -> None:
+    if held is not None:
+        await gateway.quotas.release(held)
+
+
 async def relay(
-    gateway: Gateway, tenant: Tenant, held: Reservation, prepared: Prepared, probe: Probe, exchange: Exchange
+    gateway: Gateway, tenant: Tenant, held: Reservation | None, prepared: Prepared, probe: Probe, exchange: Exchange
 ) -> AsyncIterator[str]:
     """Proxies the upstream events unchanged, then settles the quota, meters the cost and remembers the answer."""
     started = time.monotonic()
@@ -150,11 +163,12 @@ async def relay(
         async for chunk in exchange.events():
             yield chunk
     except UpstreamError:
-        await gateway.quotas.release(held)
+        await release(gateway, held)
         return
     final, elapsed = exchange.final or {}, int((time.monotonic() - started) * 1000)
     cents = round(float(final.get("cost_eur", 0.0)) * 100)
-    await gateway.quotas.settle(held, cents)
+    if held is not None:
+        await gateway.quotas.settle(held, cents)
     await gateway.meter.record(usage_event(tenant, cents, False, prepared.entities > 0, elapsed))
     if final and not final.get("refusal"):
         await gateway.cache.remember(tenant.id, prepared.stored, final, probe.vector)

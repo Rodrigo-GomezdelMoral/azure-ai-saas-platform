@@ -15,7 +15,8 @@ PLAN ?= starter
 PII ?= none
 MONTH ?= $(shell date -d "$$(date +%Y-%m-01) -1 day" +%Y-%m)
 
-.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start kube-validate console image onboard chargeback
+.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start kube-validate console image onboard chargeback deployment-env apply-k8s rollout rollback
+ROLLOUTS := platform/meter-drain tenants-starter/gateway
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -69,6 +70,18 @@ onboard:
 
 chargeback:
 	$(PYTHON) -m ops.chargeback --month $(MONTH) --output docs/benchmarks/chargeback-$(MONTH).md
+
+deployment-env:
+	@az deployment group show -g $(RESOURCE_GROUP) -n main --query properties.outputs -o json | $(PYTHON) -c "import json, re, sys; [print(re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', k).upper() + '=' + str(v['value'])) for k, v in json.load(sys.stdin).items()]"
+
+apply-k8s:
+	@for name in platform starter; do $(KUBECTL) kustomize --load-restrictor LoadRestrictionsNone k8s/.generated/$$name | $(KUBECTL) apply -f - || exit 1; done
+
+rollout:
+	@for target in $(ROLLOUTS); do $(KUBECTL) -n $${target%/*} rollout status deployment/$${target#*/} --timeout=300s || exit 1; done
+
+rollback:
+	@for target in $(ROLLOUTS); do $(KUBECTL) -n $${target%/*} rollout undo deployment/$${target#*/}; done
 
 kube-validate:
 	@for dir in $(KUSTOMIZATIONS); do \

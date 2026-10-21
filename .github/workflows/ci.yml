@@ -1,0 +1,73 @@
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install the pinned dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint, format, types, tests and budget
+        run: |
+          ruff check .
+          ruff format --check .
+          mypy
+          pytest -q
+
+      - name: Build and lint the Bicep template
+        run: |
+          az bicep build --file infra/main.bicep --stdout --only-show-errors > /dev/null
+          az bicep lint --file infra/main.bicep --only-show-errors
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: console/package-lock.json
+
+      - name: Type-check and bundle the console
+        run: cd console && npm ci --no-audit --no-fund && npm run build
+
+      - uses: azure/setup-kubectl@v5
+        with:
+          version: v1.36.5
+
+      - name: Validate every kustomization with kubeconform
+        run: |
+          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.8.0/kubeconform-linux-amd64.tar.gz | tar -xz kubeconform
+          sudo mv kubeconform /usr/local/bin/kubeconform
+          make kube-validate
+          kubeconform -strict -summary -kubernetes-version 1.36.0 load/stub.yaml
+
+      - name: Secrets, emails and identifiers over the full history
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 \
+            git /repo --config /repo/.gitleaks.toml --log-opts="--all" --redact --no-banner
+
+      - name: Known vulnerabilities in dependencies, manifests and the Dockerfile
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"

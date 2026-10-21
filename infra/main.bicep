@@ -114,6 +114,11 @@ module sharedAccess 'modules/shared-access.bicep' = {
   }
 }
 
+module nodeCosts 'modules/nodes.bicep' = {
+  name: 'node-costs', scope: resourceGroup('rg-${suffix}-nodes'), params: { principalIds: [cicdPrincipalId, operatorObjectId], role: costManagementReader }
+  dependsOn: [cluster]
+}
+
 output gatewayClientId string = identities[0].properties.clientId
 output gatewayPrincipalId string = identities[0].properties.principalId
 output gatewayIdentityId string = identities[0].id

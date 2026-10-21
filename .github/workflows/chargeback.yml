@@ -1,0 +1,64 @@
+name: chargeback
+
+# The monthly cost attribution report: application metering per tenant against Azure Cost Management by tag, with the
+# gap explained. The report is an artifact and the job summary; the author commits the ones worth keeping under
+# docs/benchmarks/. The workflow's identity holds Cost Management Reader and the Cosmos data-plane reader role.
+
+on:
+  schedule:
+    - cron: "0 6 2 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: Month to report as YYYY-MM; the previous month by default
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: rg-aisaas-prod-swc
+  ENTRA_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  API_AUDIENCE: ${{ vars.API_AUDIENCE }}
+  UPSTREAM_AUDIENCE: ${{ vars.UPSTREAM_AUDIENCE }}
+  UPSTREAM_URL: ${{ vars.UPSTREAM_URL }}
+  PYTHON: python3
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install the pinned dependencies
+        run: pip install -r requirements.txt
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read the deployment's outputs into the job
+        run: |
+          make deployment-env | sed 's/^VAULT_URL=/KEYVAULT_URL=/; s/^OIDC_ISSUER_URL=/OIDC_ISSUER=/' >> "$GITHUB_ENV"
+          month="${{ inputs.month }}"
+          echo "MONTH=${month:-$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)}" >> "$GITHUB_ENV"
+
+      - name: Reconcile metering with Cost Management
+        run: |
+          mkdir -p reports
+          python -m ops.chargeback --month "$MONTH" --output "reports/chargeback-$MONTH.md" > /dev/null
+          cat "reports/chargeback-$MONTH.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: chargeback-${{ env.MONTH }}
+          path: reports/

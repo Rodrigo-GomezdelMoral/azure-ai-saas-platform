@@ -202,8 +202,10 @@ class Onboarding:
         route = [{"op": "replace", "path": "/spec/rules/0/matches/0/path/value", "value": f"/t/{tenant.id}"}]
         identity = "/metadata/annotations/azure.workload.identity~1client-id"
         account = [{"op": "replace", "path": identity, "value": s.gateway_client_id}]
+        scope = [{"op": "replace", "path": "/spec/template/spec/containers/0/env/0/value", "value": tenant.id}]
         patches = [{"target": {"kind": "HTTPRoute", "name": "gateway"}, "patch": json.dumps(route)}]
         patches += [{"target": {"kind": "ServiceAccount", "name": "gateway"}, "patch": json.dumps(account)}]
+        patches += [{"target": {"kind": "Deployment", "name": "gateway"}, "patch": json.dumps(scope)}]
         generator = [{"name": "gateway-settings", "behavior": "replace", "envs": ["settings.env"]}]
         wrapper: dict[str, Any] = {"apiVersion": "kustomize.config.k8s.io/v1beta1", "kind": "Kustomization"}
         wrapper |= {"namespace": tenant.isolation.namespace, "resources": [overlay], "patches": patches}

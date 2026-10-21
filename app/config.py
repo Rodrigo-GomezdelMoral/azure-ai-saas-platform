@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     tenant_role_prefix: str = "tenant:"
     tenant_scope: str = ""
     require_auth: bool = True
+    enforce_quota: bool = True
     redis_host: str
     redis_port: int = Field(default=10000, ge=1, le=65535)
     cosmos_endpoint: str
