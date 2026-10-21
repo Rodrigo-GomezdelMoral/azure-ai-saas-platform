@@ -1,0 +1,24 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: tenant-starter
+value: 1000
+globalDefault: false
+description: Starter tenants are evicted first when a node is under pressure.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: tenant-business
+value: 10000
+globalDefault: false
+description: Business tenants outrank starter tenants.
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: tenant-enterprise
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: Enterprise tenants survive eviction and may preempt lower tiers.

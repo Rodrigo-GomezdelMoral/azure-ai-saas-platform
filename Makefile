@@ -6,7 +6,11 @@ OVERLAYS := starter business enterprise
 K8S_VERSION ?= 1.36.0
 CRD_SCHEMAS := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
 
-.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start
+KUBECTL ?= kubectl
+KUBECONFORM ?= kubeconform
+KUSTOMIZATIONS := k8s/overlays/starter k8s/overlays/business k8s/overlays/enterprise k8s/platform
+
+.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start kube-validate
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -48,3 +52,9 @@ stop:
 
 start:
 	az aks start -g $(RESOURCE_GROUP) -n $(CLUSTER)
+
+kube-validate:
+	@for dir in $(KUSTOMIZATIONS); do \
+	  $(KUBECTL) kustomize --load-restrictor LoadRestrictionsNone $$dir | $(KUBECONFORM) -strict -summary -kubernetes-version $(K8S_VERSION) \
+	    -schema-location default -schema-location '$(CRD_SCHEMAS)' || exit 1; \
+	done

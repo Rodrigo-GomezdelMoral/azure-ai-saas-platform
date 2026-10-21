@@ -164,6 +164,45 @@ uses; the provider lists no newer one) · `Microsoft.ManagedIdentity/userAssigne
 Kubernetes 1.36 (the AKS default in Sweden Central), validated with `kubeconform` against
 `v1.36.0-standalone-strict` and the KEDA and Gateway API schemas of the CRDs catalog.
 
+## Kubernetes manifests, verified in phase 4
+
+- API versions: `apps/v1` Deployment, `v1` Namespace, ServiceAccount, Service, ResourceQuota,
+  LimitRange, ConfigMap, `networking.k8s.io/v1` NetworkPolicy, `scheduling.k8s.io/v1`
+  PriorityClass, `autoscaling/v2` HorizontalPodAutoscaler, `rbac.authorization.k8s.io/v1`
+  ClusterRole and ClusterRoleBinding, `gateway.networking.k8s.io/v1` Gateway and HTTPRoute (the
+  managed Gateway API installation, class `approuting-istio`), `keda.sh/v1alpha1`
+  TriggerAuthentication and ScaledObject. Every kustomization builds with
+  `kubectl kustomize --load-restrictor LoadRestrictionsNone` and passes `kubeconform -strict` with
+  the 1.36.0 schemas plus the CRDs catalog: 15 objects per tier overlay, 14 in the platform.
+- **Layout.** `k8s/base` is one tenant namespace's stack; the three overlays differ only in what
+  the tier model says (namespace, quota, limits, replicas and autoscaling bounds, priority class,
+  resources, the route prefix with its `URLRewrite`, and for enterprise the toleration and the
+  required affinity to the `enterprise` pool instead of the preferred affinity to spot). The starter
+  overlay is the real shared namespace `tenants-starter`; business and enterprise are templates whose
+  `t-tenant` namespace and `/t/tenant` prefix the onboarding replaces per customer. `k8s/platform`
+  holds the shared `Gateway`, the metering drain, the onboarding workers with their KEDA
+  `ScaledObject` on the Service Bus `onboarding` queue, and the platform network policies; the load
+  stub lives under `load/` because it is test tooling.
+- **Nothing environment-specific is committed.** Images are `gateway:0.0.0` and the kustomize
+  `images` transformer sets the registry and tag at deploy time; service-account client ids and the
+  KEDA `identityId` are all-zero placeholders patched at deploy time; `k8s/settings.env` holds
+  `.invalid` hosts and is replaced by a `configMapGenerator` with `behavior: replace` in the
+  generated wrapper kustomization (`k8s/.generated/`, gitignored). `settings.env` sits above the
+  kustomizations so base and platform share it, which is why every build passes
+  `--load-restrictor LoadRestrictionsNone`.
+- **Security shape.** Namespaces carry `pod-security.kubernetes.io/enforce: restricted`; every pod
+  runs as user 10001, non-root, read-only root filesystem, all capabilities dropped, no privilege
+  escalation, `RuntimeDefault` seccomp, `emptyDir` on `/tmp`, requests and limits, readiness and
+  liveness probes (HTTP on the gateway, a heartbeat file the workers touch for the drain and the
+  onboarding worker); the gateway and the drain do not mount the API token. The default-deny
+  policy is an empty `podSelector` with both policy types; the only ingress to a tenant gateway is
+  from the `platform` namespace, where the Gateway's proxies run; egress is DNS, the public Azure
+  endpoints on 443 and 10000 with the private ranges excluded, and the load stub.
+- **Tier arithmetic.** Starter: quota 1 CPU / 1 Gi requests, 2 / 2 Gi limits, 10 pods, HPA 1–3;
+  Business: 2 / 2 Gi, 4 / 4 Gi, 20 pods, HPA 2–5, priority 10,000; Enterprise: 4 / 4 Gi, 8 / 8 Gi,
+  40 pods, HPA 2–10, priority 100,000 with preemption, dedicated pool. `docs/architecture.md` draws
+  it and `tests/test_isolation.py` exercises the data stores in phase 5.
+
 ## SDK reference — verified against the installed packages
 
 | Purpose | Verified names |

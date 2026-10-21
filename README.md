@@ -15,13 +15,21 @@ redacts and forwards; none of that is open-ended or tool-driven. The agents live
 
 ## Status
 
-Phase 3 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings, the domain
-model, and the whole infrastructure as code — the three workload identities and their federated
+Phase 4 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings, the domain
+model, the whole infrastructure as code — the three workload identities and their federated
 credentials, the Key Vault with the one signing key, Application Insights, the AKS cluster with its
 system, spot and enterprise pools, Azure Managed Redis, Cosmos DB, Service Bus, Event Grid, the
 Flex Consumption Function, the alerts and the budget, and the roles each identity holds on the
-landing zone's shared services. The manifests, the gateway, the onboarding recording, the load-test
-results and the unit economics arrive with their phases; this file is completed in phase 9.
+landing zone's shared services — and the Kubernetes manifests: one base per tenant namespace,
+three tier overlays, and the platform namespace with the Gateway, the metering drain and the
+KEDA-scaled onboarding workers. The gateway, the onboarding recording, the load-test results and
+the unit economics arrive with their phases; this file is completed in phase 9.
+
+Validating the manifests without a cluster:
+
+```
+make kube-validate      # kubectl kustomize on each overlay and the platform, then kubeconform -strict
+```
 
 Deploying from a workstation without Docker:
 
