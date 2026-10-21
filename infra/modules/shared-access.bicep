@@ -18,19 +18,16 @@ resource foundry 'Microsoft.CognitiveServices/accounts@2026-07-01' existing = { 
 resource search 'Microsoft.Search/searchServices@2025-05-01' existing = { name: searchServiceName }
 
 resource registryAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for item in registryGrants: {
-  name: guid(registry.id, item.principalId, roles[item.role])
-  scope: registry
+  name: guid(registry.id, item.principalId, roles[item.role]), scope: registry
   properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles[item.role]), principalId: item.principalId, principalType: item.principalType }
 }]
 
 resource foundryAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for item in foundryGrants: {
-  name: guid(foundry.id, item.principalId, roles[item.role])
-  scope: foundry
+  name: guid(foundry.id, item.principalId, roles[item.role]), scope: foundry
   properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles[item.role]), principalId: item.principalId, principalType: item.principalType }
 }]
 
 resource searchAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for item in searchGrants: {
-  name: guid(search.id, item.principalId, roles[item.role])
-  scope: search
+  name: guid(search.id, item.principalId, roles[item.role]), scope: search
   properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', roles[item.role]), principalId: item.principalId, principalType: item.principalType }
 }]

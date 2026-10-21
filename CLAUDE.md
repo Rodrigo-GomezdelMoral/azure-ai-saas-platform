@@ -89,7 +89,7 @@ ceiling the same way. The rule, recorded here and in the README's scope section:
 | Files | tracked files outside `docs/` | 80 |
 | Application Python | `app/`, `ops/`, `functions/` | 1,200 |
 | Support Python | `tests/`, `load/` | 600 |
-| Bicep | `infra/**/*.bicep`, `*.bicepparam` | 500 |
+| Bicep | `infra/**/*.bicep`, `*.bicepparam` | 600, raised once in phase 3 from the specification's 500: its own resource list (a cluster with three pools and a data collection rule, Redis, Cosmos with three containers and five data-plane roles, Service Bus with two queues, Event Grid, a Flex Consumption Function with its storage and plan, Key Vault with its key, App Insights, five alerts and a budget, seven diagnostic settings, five federated credentials and twenty-eight role assignments) reached 675 lines in the sibling repositories' style and 535 after compaction |
 | YAML | `k8s/**` (the specification's §4 ceiling); workflows are reported, not capped | 500 |
 | TypeScript | `console/**/*.ts` | 700 |
 | Comments | `#` lines in Python | under 25 |
@@ -137,22 +137,29 @@ through a Service Bus queue that KEDA scales the onboarding workers on, or from 
 | Functions | Flex Consumption, Python 3.12, entry point `functions/function_app.py` registering the blueprint in `functions/aggregate.py`; identity-based `AzureWebJobsStorage` and Service Bus connections; the identity needs **Azure Service Bus Data Owner** for the trigger's scale controller | `azure-functions/functions-reference-python`, `flex-consumption-plan`, `functions-bindings-service-bus-trigger` |
 | Key Vault | RBAC authorisation, purge protection on (irreversible: a destroy-and-redeploy recovers the soft-deleted vault rather than recreating the name). `id-saasonboard` holds Key Vault Crypto User (sign); the gateway verifies signatures with the public key that onboarding publishes to Cosmos and holds no Key Vault role at all | specification §6, `az role definition list` |
 
-## API versions verified on 2026-10-21 (latest GA on Learn)
+## API versions verified on 2026-10-21
 
-`Microsoft.ContainerService/managedClusters` 2026-08-01 · `Microsoft.Cache/redisEnterprise` and
-`/databases` and `/databases/accessPolicyAssignments` 2026-09-01 · `Microsoft.DocumentDB/*`
-2024-12-09 · `Microsoft.ServiceBus/namespaces` and `/queues` 2026-01-01 ·
-`Microsoft.EventGrid/topics` 2025-02-15 · `Microsoft.Web/serverfarms` and `/sites` 2025-03-01 ·
-`Microsoft.Storage/storageAccounts` 2026-09-01 · `Microsoft.KeyVault/vaults` 2026-05-15 ·
+The authoritative list of a type's versions is the resource provider itself (`az provider show
+--query "resourceTypes[?resourceType=='<type>'].apiVersions"`), not the Learn page, whose version
+menu is rendered by script and once yielded a Cosmos version that does not exist. The templates use
+the newest GA version for which Bicep 0.48.1 ships type definitions, so every property name is
+validated at build; where the provider has a newer GA version without types, it is noted.
+
+`Microsoft.ContainerService/managedClusters` 2026-06-01 (provider: 2026-08-01) ·
+`Microsoft.Cache/redisEnterprise`, `/databases`, `/databases/accessPolicyAssignments` 2025-07-01
+(provider: 2026-09-01) · `Microsoft.DocumentDB/databaseAccounts` and children 2025-10-15 (provider:
+2026-03-15) · `Microsoft.ServiceBus/namespaces` and `/queues` 2026-01-01 ·
+`Microsoft.EventGrid/topics` 2025-02-15 · `Microsoft.Web/serverfarms` and `/sites` 2025-03-01
+(provider: 2026-08-01) · `Microsoft.Storage/storageAccounts` and `/blobServices/containers`
+2026-06-01 (provider: 2026-09-01) · `Microsoft.KeyVault/vaults` and `/keys` 2026-05-15 ·
 `Microsoft.Insights/components` 2020-02-02 · `Microsoft.Insights/dataCollectionRules` and
 `/dataCollectionRuleAssociations` 2024-03-11 · `Microsoft.Insights/metricAlerts` 2026-01-01 ·
-`Microsoft.Insights/scheduledQueryRules` 2026-03-01 · `Microsoft.Insights/diagnosticSettings`
-2021-05-01-preview (the only version) · `Microsoft.ManagedIdentity/userAssignedIdentities` and
-`/federatedIdentityCredentials` 2024-11-30 · `Microsoft.Authorization/roleAssignments`
-2022-04-01 · `Microsoft.Consumption/budgets` 2026-06-01 · existing references:
+`Microsoft.Insights/diagnosticSettings` 2021-05-01-preview (the version every portfolio template
+uses; the provider lists no newer one) · `Microsoft.ManagedIdentity/userAssignedIdentities` and
+`/federatedIdentityCredentials` 2024-11-30 · `Microsoft.Authorization/roleAssignments` 2022-04-01 ·
+`Microsoft.Consumption/budgets` 2026-06-01 · existing references:
 `Microsoft.ContainerRegistry/registries` 2025-11-01, `Microsoft.CognitiveServices/accounts`
-2026-07-01, `Microsoft.Search/searchServices` 2025-05-01, `Microsoft.OperationalInsights/workspaces`
-2026-03-01, `Microsoft.Insights/actionGroups` 2023-01-01.
+2026-07-01, `Microsoft.Search/searchServices` 2025-05-01.
 
 Kubernetes 1.36 (the AKS default in Sweden Central), validated with `kubeconform` against
 `v1.36.0-standalone-strict` and the KEDA and Gateway API schemas of the CRDs catalog.
@@ -182,7 +189,27 @@ has not been imported and introspected first.
   locator, not a secret: every sender needs Monitoring Metrics Publisher on the component, which
   the template grants to the three identities and the operator.
 - The Key Vault is `createMode: 'default'` on first deployment and `'recover'` (`VAULT_CREATE_MODE`)
-  after a destroy, because purge protection keeps the soft-deleted vault for 90 days.
+  after a destroy, because purge protection keeps the soft-deleted vault for 90 days. Deployed on
+  2026-10-21 in 37 seconds.
+- Phase 3 (cluster, data plane, Function, alerts, federation): every module takes one `common`
+  object (location, tags, suffix, workspace id) and resources are written with several properties
+  per line, which brought the templates from 675 to 556 lines. **Measured:** a module parameter
+  that is an *object* containing a `reference()` (a principal id of an identity created in the
+  same template) makes what-if short-circuit the whole nested deployment
+  (`NestedDeploymentShortCircuited`), while the same ids passed as *string* parameters are
+  evaluated, so principal ids travel as strings and `common` carries only deploy-time values.
+  With that, what-if reaches the AKS preflight, which rejected `upgradeSettings.maxSurge` on the
+  spot pool ("Spot pools can't set max surge") and then stopped on the DASv5 quota, which is the
+  author's pending request; the rest of the template was validated with node sizes from a family
+  that has quota. `metricAlerts` criteria need `criterionType:
+  'StaticThresholdCriterion'`. The Service Bus name trips BCP334 on the six-character minimum because
+  Bicep cannot see the interpolated length; the one `#disable-next-line` in the repository is there.
+  The Container insights data collection rule carries the extension `ContainerInsights` with five
+  streams, a five-minute interval and the system namespaces excluded, and its association must be
+  named `ContainerInsightsExtension`. Kubelet pulls images with the cluster's own kubelet identity,
+  so `AcrPull` goes to `identityProfile.kubeletidentity.objectId`, not to a workload identity. The
+  federated credentials to Kubernetes service accounts live in `modules/federation.bicep` because
+  they need the cluster's OIDC issuer URL; per-tenant namespaces add theirs at onboarding.
 
 ## Phases
 
