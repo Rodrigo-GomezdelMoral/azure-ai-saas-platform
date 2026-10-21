@@ -58,6 +58,12 @@ class Isolation(BaseModel):
         return cls(namespace=dedicated, index=dedicated, database=dedicated, container="usage")
 
 
+def tenant_id_from(name: str) -> str:
+    """The identifier a company name maps to: lowercase, hyphenated and bounded; the same name gives the same id."""
+    slug = "".join(char if char.isalnum() else "-" for char in name.lower()).strip("-")
+    return "-".join(part for part in slug.split("-") if part)[:31].rstrip("-")
+
+
 class Tenant(BaseModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9-]{2,30}$")
     name: str = Field(min_length=2, max_length=80)

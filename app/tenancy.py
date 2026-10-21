@@ -18,9 +18,9 @@ JWKS_DOCUMENT, JWKS_PARTITION = "jwks", "platform"
 
 
 class AccessError(Exception):
-    def __init__(self, status: int, detail: str) -> None:
+    def __init__(self, status: int, detail: str, retry_after: int = 0) -> None:
         super().__init__(detail)
-        self.status, self.detail = status, detail
+        self.status, self.detail, self.retry_after = status, detail, retry_after
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,10 @@ class Principal:
 
 class KeySource(Protocol):
     def get_signing_key_from_jwt(self, token: str) -> Any: ...
+
+
+class Resolving(Protocol):
+    async def resolve(self, authorization: str | None) -> Principal: ...
 
 
 class TenantStore(Protocol):
@@ -136,7 +140,7 @@ class TenantResolver:
 class TenantMiddleware:
     """Resolves the tenant once, before routing, so that no handler and no store sees an unattributed request."""
 
-    def __init__(self, app: ASGIApp, resolver: TenantResolver, exempt: tuple[str, ...] = ("/healthz",)) -> None:
+    def __init__(self, app: ASGIApp, resolver: Resolving, exempt: tuple[str, ...] = ("/healthz",)) -> None:
         self.app, self.resolver, self.exempt = app, resolver, exempt
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
@@ -153,4 +157,6 @@ class TenantMiddleware:
 def problem(rejected: AccessError, instance: str) -> JSONResponse:
     body = {"type": "about:blank", "title": "request rejected", "status": rejected.status, "detail": rejected.detail}
     headers = {"WWW-Authenticate": "Bearer"} if rejected.status == 401 else {}
+    if rejected.retry_after:
+        headers["Retry-After"] = str(rejected.retry_after)
     return JSONResponse(body | {"instance": instance}, rejected.status, headers, media_type="application/problem+json")

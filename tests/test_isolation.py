@@ -14,7 +14,8 @@ from app.models import PLANS
 from app.quotas import QuotaGate
 from app.tenancy import TenantResolver, digest_of
 from functions.aggregate import aggregate, apply
-from tests.conftest import Keys, MemoryStore
+from tests.conftest import MemoryStore
+from tests.test_gateway import World
 from tests.test_metering import FakeContainer, MemoryVectorStore, event, fake_embedder
 
 Probe = Callable[[dict[str, Any]], Awaitable[bool]]
@@ -60,14 +61,22 @@ async def usage_record(world: dict[str, Any]) -> bool:
     return "acme" in seen or ("globex", "2026-11", "2026-11") not in container.documents
 
 
+async def upstream_index(world: dict[str, Any]) -> bool:
+    gateway = World(world["settings"], world["store"], world["keys"], world["redis"])
+    await gateway.resolver.refresh_keys()
+    await gateway.ask("acme")
+    sent, tenants = gateway.upstream.requests[0]["index"], world["store"].tenants
+    return bool(sent != tenants["acme"].isolation.index or sent == tenants["globex"].isolation.index)
+
+
 STORES: dict[str, Probe] = {"tenants": tenant_record, "credentials": credential_record, "quota": quota_bucket}
-STORES |= {"cache": cached_answer, "usage": usage_record}
+STORES |= {"cache": cached_answer, "usage": usage_record, "index": upstream_index}
 
 
 @pytest.fixture
-def world(resolver: TenantResolver, store: MemoryStore, keys: Keys, redis: Any, tenants: list[Any]) -> dict[str, Any]:
-    gate = QuotaGate(redis)
-    return {"resolver": resolver, "store": store, "keys": keys, "gate": gate, "tenants": tenants, "redis": redis}
+def world(resolver: Any, store: Any, keys: Any, redis: Any, tenants: Any, settings: Any) -> dict[str, Any]:
+    stores = {"resolver": resolver, "store": store, "keys": keys, "gate": QuotaGate(redis)}
+    return stores | {"tenants": tenants, "redis": redis, "settings": settings}
 
 
 @pytest.mark.parametrize("store_name", sorted(STORES))

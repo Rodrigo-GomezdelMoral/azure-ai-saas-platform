@@ -15,20 +15,27 @@ redacts and forwards; none of that is open-ended or tool-driven. The agents live
 
 ## Status
 
-Phase 5 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings, the domain
+Phase 7 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings, the domain
 model, the whole infrastructure as code — the three workload identities and their federated
 credentials, the Key Vault with the one signing key, Application Insights, the AKS cluster with its
 system, spot and enterprise pools, Azure Managed Redis, Cosmos DB, Service Bus, Event Grid, the
 Flex Consumption Function, the alerts and the budget, and the roles each identity holds on the
 landing zone's shared services — the Kubernetes manifests: one base per tenant namespace, three
 tier overlays, and the platform namespace with the Gateway, the metering drain and the KEDA-scaled
-onboarding workers — and the gateway's data path so far: tenant resolution at the edge
-(`app/tenancy.py`, ADR-002), quota enforcement before work (`app/quotas.py`, ADR-003), metering as
-a Redis Stream drained to Service Bus and folded into Cosmos by the Flex Consumption Function
-(`app/metering.py`, `functions/`, ADR-004) and the per-tenant semantic cache (`app/cache.py`,
-ADR-006), with the cross-tenant isolation test covering five stores and the metering accuracy test
-over a simulated month. The rest of the gateway, the onboarding recording, the load-test results
-and the unit economics arrive with their phases; this file is completed in phase 9.
+onboarding workers — and the whole gateway: tenant resolution at the edge (`app/tenancy.py`,
+ADR-002), quota enforcement before work (`app/quotas.py`, ADR-003), metering as a Redis Stream
+drained to Service Bus and folded into Cosmos by the Flex Consumption Function (`app/metering.py`,
+`functions/`, ADR-004), the per-tenant semantic cache (`app/cache.py`, ADR-006), the typed client
+for the RAG platform with its circuit breaker (`app/upstream.py`, ADR-007), the per-tenant PII
+policy (`app/privacy.py`, ADR-008), telemetry with the tenant on every span, and the API surface
+(`app/main.py`). The cross-tenant isolation test covers six stores, the quota test proves the
+upstream is never called at the ceiling, and the metering accuracy test runs a simulated month.
+Onboarding, chargeback, the console, the recording, the load-test results and the unit economics
+arrive with their phases; this file is completed in phase 9.
+
+**When the RAG platform is down**, the gateway answers 503 with `Retry-After`, releases the
+tenant's quota reservation and keeps serving questions whose answers are in the tenant's cache;
+new questions wait until the circuit closes (ADR-007).
 
 Validating the manifests without a cluster:
 
@@ -49,7 +56,8 @@ make deploy                                          # az deployment group creat
 - **Size.** The specification asks for at most 50 files and 1,200 lines of Python. Its own
   mandated layout does not fit in either, so `tests/test_budget.py` enforces the counting rule in
   `CLAUDE.md`: at most 80 tracked files outside `docs/`; 1,200 lines of application Python (`app/`,
-  `ops/`, `functions/`) and 600 of support Python (`tests/`, `load/`); 600 lines of Bicep, raised
-  once from 500 in phase 3 because the specification's own resource list did not fit even after
+  `ops/`, `functions/`) and 900 of support Python (`tests/`, `load/`), raised once from 600 in
+  phase 7 because the three thesis tests carry their own doubles; 600 lines of Bicep, raised once
+  from 500 in phase 3 because the specification's own resource list did not fit even after
   compaction; 500 of YAML under `k8s/`; 700 of TypeScript; fewer than 25 comment lines. The actual
   counts are recorded here at the end of every phase.
