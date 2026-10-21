@@ -1,0 +1,20 @@
+title = "azure-ai-saas-platform"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "email-address"
+description = "An email address; the repository commits none"
+regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'''
+[rules.allowlist]
+regexes = ['''@example\.(com|invalid)''', '''users\.noreply\.github\.com''']
+
+[[rules]]
+id = "guid"
+description = "A GUID; only the all-zero placeholder and the built-in role definition ids the templates need are allowed"
+regex = '''[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'''
+[rules.allowlist]
+regexes = [
+  '''00000000-0000-0000-0000-00000000000[0-9]''',
+]

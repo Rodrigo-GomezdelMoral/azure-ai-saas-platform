@@ -1,0 +1,13 @@
+{
+  "name": "azure-ai-saas-platform",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/azure-cli:1": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": { "helm": "none", "minikube": "none" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" },
+    "ghcr.io/azure/azure-dev/azd:0": {}
+  },
+  "postCreateCommand": "pip install -r requirements-dev.txt && cp -n .env.example .env",
+  "forwardPorts": [8000],
+  "customizations": { "vscode": { "extensions": ["ms-python.python", "charliermarsh.ruff", "ms-azuretools.vscode-bicep"] } }
+}
