@@ -168,6 +168,22 @@ Kubernetes 1.36 (the AKS default in Sweden Central), validated with `kubeconform
 Later phases extend this table as each module is written; nothing is written against a name that
 has not been imported and introspected first.
 
+## Infrastructure facts verified while writing `infra/`
+
+- Phase 2 (identities, Key Vault, App Insights, shared-service roles): `az bicep build` and `lint`
+  clean on every template with Bicep 0.48.1; `az deployment group what-if` succeeded with 14
+  creates and 8 role assignments reported as unsupported because their names derive from runtime
+  principal ids (the same report every earlier repository produced). The parameters file reads the
+  azd environment, which lives in the gitignored `.azure/` and is exported into the shell with
+  `eval "$(azd env get-values | sed 's/^/export /')"`. A role assignment loop whose collection
+  contains a resource property fails with BCP178, so the two assignments on `id-saasgw` are
+  separate resources, while loops inside modules iterate over module parameters freely.
+- `Microsoft.Insights/components` with `DisableLocalAuth: true` makes the connection string a
+  locator, not a secret: every sender needs Monitoring Metrics Publisher on the component, which
+  the template grants to the three identities and the operator.
+- The Key Vault is `createMode: 'default'` on first deployment and `'recover'` (`VAULT_CREATE_MODE`)
+  after a destroy, because purge protection keeps the soft-deleted vault for 90 days.
+
 ## Phases
 
 | # | Work | Commit message |

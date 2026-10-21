@@ -15,9 +15,20 @@ redacts and forwards; none of that is open-ended or tool-driven. The agents live
 
 ## Status
 
-Phase 1 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings and the domain
-model. The architecture, the isolation model, the onboarding recording, the load-test results and
-the unit economics arrive with their phases; this file is completed in phase 9.
+Phase 2 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings, the domain
+model, and the first layer of infrastructure — the three workload identities, the Key Vault with
+the one signing key, Application Insights, and the roles each identity holds on the landing zone's
+shared services. The cluster, the data plane, the manifests, the gateway, the onboarding recording,
+the load-test results and the unit economics arrive with their phases; this file is completed in
+phase 9.
+
+Deploying from a workstation without Docker:
+
+```
+eval "$(azd env get-values | sed 's/^/export /')"   # the bicepparam reads the azd environment
+make preview                                         # az deployment group what-if
+make deploy                                          # az deployment group create, the full template
+```
 
 ## Scope and simplifications
 
