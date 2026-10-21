@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -73,10 +73,24 @@ class Tenant(BaseModel):
     client_id: str | None = None
     created: datetime
     suspended: bool = False
+    status: Literal["provisioning", "ready", "failed"] = "ready"
 
     @property
     def quota(self) -> Quota:
         return PLANS[self.plan]
+
+
+class Order(BaseModel):
+    """An onboarding request; `seal` is the requester's public key, so the credential comes back sealed to it."""
+
+    name: str = Field(min_length=2, max_length=80)
+    plan: Plan
+    pii: PiiPolicy = PiiPolicy.NONE
+    seal: dict[str, str] | None = None
+
+    @property
+    def tenant_id(self) -> str:
+        return tenant_id_from(self.name)
 
 
 class Credential(BaseModel):

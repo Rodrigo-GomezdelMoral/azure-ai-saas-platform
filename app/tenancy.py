@@ -15,6 +15,7 @@ from app.models import Plan, Tenant
 LOGIN = "https://login.microsoftonline.com"
 CREDENTIAL_ISSUER = "azure-ai-saas-platform"
 JWKS_DOCUMENT, JWKS_PARTITION = "jwks", "platform"
+EXEMPT = ("/healthz", "/console")
 
 
 class AccessError(Exception):
@@ -129,8 +130,8 @@ class TenantResolver:
 
     async def _tenant(self, tenant_id: str) -> Tenant:
         tenant = await self.store.tenant(tenant_id)
-        if tenant is None or tenant.suspended:
-            raise AccessError(403, "unknown or suspended tenant")
+        if tenant is None or tenant.suspended or tenant.status != "ready":
+            raise AccessError(403, "unknown, suspended or unfinished tenant")
         scope = self.settings.tenant_scope
         if scope and (tenant.plan is not Plan.STARTER if scope == "starter" else tenant.id != scope):
             raise AccessError(403, "this gateway does not serve that tenant")
@@ -138,16 +139,20 @@ class TenantResolver:
 
 
 class TenantMiddleware:
-    """Resolves the tenant once, before routing, so that no handler and no store sees an unattributed request."""
+    """Resolves the tenant once, before routing, so that no handler and no store sees an unattributed request.
 
-    def __init__(self, app: ASGIApp, resolver: Resolving, exempt: tuple[str, ...] = ("/healthz",)) -> None:
+    Without an explicit resolver it uses the gateway the lifespan builds, which exists only after the middleware does.
+    """
+
+    def __init__(self, app: ASGIApp, resolver: Resolving | None = None, exempt: tuple[str, ...] = EXEMPT) -> None:
         self.app, self.resolver, self.exempt = app, resolver, exempt
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope["path"] in self.exempt:
+        if scope["type"] != "http" or scope["path"].startswith(self.exempt):
             return await self.app(scope, receive, send)
+        resolver: Resolving = self.resolver or scope["app"].state.gateway.resolver
         try:
-            principal = await self.resolver.resolve(Headers(scope=scope).get("authorization"))
+            principal = await resolver.resolve(Headers(scope=scope).get("authorization"))
         except AccessError as rejected:
             return await problem(rejected, scope["path"])(scope, receive, send)
         scope.setdefault("state", {})["principal"] = principal

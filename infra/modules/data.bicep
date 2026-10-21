@@ -112,6 +112,7 @@ resource topicDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-prev
 
 output redisHost string = redis.properties.hostName
 output cosmosEndpoint string = cosmos.properties.documentEndpoint
+output cosmosAccountId string = cosmos.id
 output servicebusNamespace string = '${bus.name}.servicebus.windows.net'
 output servicebusId string = bus.id
 output eventgridEndpoint string = topic.properties.endpoint

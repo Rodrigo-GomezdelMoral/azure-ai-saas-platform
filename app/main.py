@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -11,36 +12,33 @@ import httpx
 import jwt
 from azure.ai.textanalytics.aio import TextAnalyticsClient
 from azure.cosmos.aio import ContainerProxy, CosmosClient
+from azure.cosmos.exceptions import CosmosResourceNotFoundError
 from azure.identity.aio import DefaultAzureCredential
 from azure.servicebus import ServiceBusMessage
 from azure.servicebus.aio import ServiceBusClient
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.exceptions import HTTPException, RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import telemetry
 from app.cache import Probe, RediSearchStore, SemanticCache, foundry_embedder
 from app.config import Settings
 from app.metering import Meter
-from app.models import PiiPolicy, Plan, Tenant, UsageEvent, tenant_id_from
+from app.models import Order, Tenant, UsageEvent
 from app.privacy import Prepared, Privacy, RedactionError, Redactor
 from app.quotas import QuotaGate, Reservation, redis_client
 from app.tenancy import LOGIN, AccessError, CosmosTenantStore, Principal, TenantMiddleware, TenantResolver, problem
 from app.upstream import Exchange, UpstreamClient, UpstreamError
 
 routes = APIRouter()
+CONSOLE = Path(__file__).resolve().parent.parent / "console" / "dist"
 
 
 class Question(BaseModel):
     question: str = Field(min_length=3, max_length=4000)
     conversation_id: str = Field(default_factory=lambda: uuid4().hex, pattern=r"^[A-Za-z0-9-]{1,64}$")
-
-
-class Onboarding(BaseModel):
-    name: str = Field(min_length=2, max_length=80)
-    plan: Plan
-    pii: PiiPolicy = PiiPolicy.NONE
 
 
 @dataclass
@@ -82,17 +80,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
 
 
-class Later:
-    """The middleware is attached before the clients exist; it resolves through the gateway the lifespan builds."""
-
-    def __init__(self, app: FastAPI) -> None:
-        self.app = app
-
-    async def resolve(self, authorization: str | None) -> Principal:
-        resolver: TenantResolver = self.app.state.gateway.resolver
-        return await resolver.resolve(authorization)
-
-
 def create_app(gateway: Gateway | None = None) -> FastAPI:
     app = FastAPI(title="Regulatory Intelligence as a Service", lifespan=None if gateway else lifespan)
     if gateway:
@@ -100,7 +87,9 @@ def create_app(gateway: Gateway | None = None) -> FastAPI:
     for error_type in (AccessError, HTTPException, RequestValidationError, UpstreamError, RedactionError):
         app.add_exception_handler(error_type, rejected)
     app.include_router(routes)
-    app.add_middleware(TenantMiddleware, resolver=Later(app))
+    app.add_middleware(TenantMiddleware)
+    if CONSOLE.is_dir():
+        app.mount("/console", StaticFiles(directory=CONSOLE, html=True), name="console")
     return app
 
 
@@ -180,25 +169,50 @@ async def usage(request: Request) -> dict[str, Any]:
     return period | {"spent_cents": spent, "monthly_cents": tenant.quota.monthly_cents}
 
 
-@routes.post("/admin/tenants", status_code=202)
-async def onboard(body: Onboarding, request: Request) -> dict[str, str]:
-    gateway: Gateway = request.app.state.gateway
+def admin(request: Request) -> Gateway:
     if not principal(request).admin:
         raise AccessError(403, "the platform admin role is required")
-    tenant_id = tenant_id_from(body.name)
-    order = {"tenant_id": tenant_id, "requested": datetime.now(UTC).isoformat()} | body.model_dump(mode="json")
+    gateway: Gateway = request.app.state.gateway
+    return gateway
+
+
+@routes.post("/admin/tenants", status_code=202)
+async def onboard(body: Order, request: Request) -> dict[str, str]:
+    gateway = admin(request)
+    order = {"tenant_id": body.tenant_id, "requested": datetime.now(UTC).isoformat()} | body.model_dump(mode="json")
     await gateway.onboard.send_messages(ServiceBusMessage(json.dumps(order), content_type="application/json"))
-    return {"tenant": tenant_id, "status": "queued"}
+    return {"tenant": body.tenant_id, "status": "queued"}
 
 
 @routes.get("/admin/tenants")
 async def tenants(request: Request) -> list[dict[str, Any]]:
-    gateway: Gateway = request.app.state.gateway
-    if not principal(request).admin or gateway.tenants is None:
-        raise AccessError(403, "the platform admin role is required")
-    fields = "c.id, c.name, c.plan, c.pii, c.isolation, c.created, c.suspended"
-    query = gateway.tenants.query_items(f"SELECT {fields} FROM c")
-    return [dict(item) async for item in query]
+    gateway = admin(request)
+    if gateway.tenants is None:
+        return []
+    fields = "c.id, c.name, c.plan, c.pii, c.isolation, c.created, c.suspended, c.status"
+    return [dict(item) async for item in gateway.tenants.query_items(f"SELECT {fields} FROM c")]
+
+
+@routes.get("/admin/tenants/{tenant_id}")
+async def tenant_status(tenant_id: str, request: Request) -> dict[str, Any]:
+    """The onboarding's progress; a sealed credential is returned once and removed from the document on that read."""
+    gateway = admin(request)
+    if gateway.tenants is None:
+        raise AccessError(404, "unknown tenant")
+    try:
+        document = dict(await gateway.tenants.read_item(item=tenant_id, partition_key=tenant_id))
+    except CosmosResourceNotFoundError as missing:
+        raise AccessError(404, "unknown tenant") from missing
+    if document.get("sealed_credential"):
+        forget = [{"op": "remove", "path": "/sealed_credential"}]
+        await gateway.tenants.patch_item(item=tenant_id, partition_key=tenant_id, patch_operations=forget)
+    return {key: value for key, value in document.items() if not key.startswith("_")}
+
+
+@routes.get("/console/config.json")
+async def console_config(request: Request) -> dict[str, str]:
+    settings: Settings = request.app.state.gateway.settings
+    return {"tenant_id": settings.entra_tenant_id, "client_id": settings.api_audience}
 
 
 @routes.get("/healthz")

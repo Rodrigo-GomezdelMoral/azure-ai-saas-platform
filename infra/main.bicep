@@ -116,6 +116,7 @@ module sharedAccess 'modules/shared-access.bicep' = {
 
 output gatewayClientId string = identities[0].properties.clientId
 output gatewayPrincipalId string = identities[0].properties.principalId
+output gatewayIdentityId string = identities[0].id
 output functionClientId string = identities[1].properties.clientId
 output onboardClientId string = identities[2].properties.clientId
 output vaultUrl string = vault.outputs.vaultUrl
@@ -124,6 +125,7 @@ output clusterName string = cluster.outputs.clusterName
 output oidcIssuerUrl string = cluster.outputs.oidcIssuerUrl
 output redisHost string = data.outputs.redisHost
 output cosmosEndpoint string = data.outputs.cosmosEndpoint
+output cosmosAccountId string = data.outputs.cosmosAccountId
 output servicebusNamespace string = data.outputs.servicebusNamespace
 output eventgridEndpoint string = data.outputs.eventgridEndpoint
 output functionAppName string = functions.outputs.functionAppName

@@ -45,6 +45,7 @@ spec:
           image: gateway:0.0.0
           args: [python, -m, ops.onboard, --worker]
           envFrom: [{ configMapRef: { name: gateway-settings } }]
+          env: [{ name: ONBOARD_WORKDIR, value: /tmp/onboard }]
           resources:
             requests: { cpu: 100m, memory: 256Mi }
             limits: { cpu: 500m, memory: 512Mi }

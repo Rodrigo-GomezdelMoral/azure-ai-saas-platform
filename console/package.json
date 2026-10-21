@@ -1,0 +1,14 @@
+{
+  "name": "regulatory-intelligence-console",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && esbuild src/main.ts --bundle --format=esm --target=es2022 --minify --outfile=dist/main.js && node -e \"require('fs').copyFileSync('index.html', 'dist/index.html')\""
+  },
+  "devDependencies": {
+    "@azure/msal-browser": "5.25.1",
+    "esbuild": "0.28.2",
+    "typescript": "5.9.3"
+  }
+}

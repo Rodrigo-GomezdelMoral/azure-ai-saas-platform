@@ -15,7 +15,7 @@ redacts and forwards; none of that is open-ended or tool-driven. The agents live
 
 ## Status
 
-Phase 7 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings, the domain
+Phase 8 of 9: the working agreement (`CLAUDE.md`), the budget test, typed settings, the domain
 model, the whole infrastructure as code — the three workload identities and their federated
 credentials, the Key Vault with the one signing key, Application Insights, the AKS cluster with its
 system, spot and enterprise pools, Azure Managed Redis, Cosmos DB, Service Bus, Event Grid, the
@@ -30,8 +30,9 @@ for the RAG platform with its circuit breaker (`app/upstream.py`, ADR-007), the 
 policy (`app/privacy.py`, ADR-008), telemetry with the tenant on every span, and the API surface
 (`app/main.py`). The cross-tenant isolation test covers six stores, the quota test proves the
 upstream is never called at the ceiling, and the metering accuracy test runs a simulated month.
-Onboarding, chargeback, the console, the recording, the load-test results and the unit economics
-arrive with their phases; this file is completed in phase 9.
+The onboarding (`ops/onboard.py`, the console under `console/` and the worker the console queues to), the
+chargeback report (`ops/chargeback.py`) and the image (`Dockerfile`) are in place. The recording, the
+load-test results and the unit economics arrive with phase 9, which completes this file.
 
 **When the RAG platform is down**, the gateway answers 503 with `Retry-After`, releases the
 tenant's quota reservation and keeps serving questions whose answers are in the tenant's cache;
@@ -51,13 +52,30 @@ make preview                                         # az deployment group what-
 make deploy                                          # az deployment group create, the full template
 ```
 
+## Onboarding a customer
+
+From a workstation signed in as the platform operator, with the deployment's values in the environment:
+
+```
+make onboard NAME="Globex Industries" PLAN=business PII=before_storage
+```
+
+The command prints each step with its duration and ends with the elapsed time and the customer's first
+credential, shown once. The same eight steps run behind the console at `/console`, where the operator
+signs in with Entra, submits the company name and the plan, watches the steps complete and receives the
+credential sealed to the browser session (`docs/onboarding.md`). Business and Enterprise customers also
+get an app registration holding the `tenant:<id>` role on the gateway, so they can move from the
+credential to Entra tokens. The recording of a run belongs near the top of this file and is linked once
+it exists.
+
 ## Scope and simplifications
 
 - **Size.** The specification asks for at most 50 files and 1,200 lines of Python. Its own
   mandated layout does not fit in either, so `tests/test_budget.py` enforces the counting rule in
-  `CLAUDE.md`: at most 80 tracked files outside `docs/`; 1,200 lines of application Python (`app/`,
-  `ops/`, `functions/`) and 900 of support Python (`tests/`, `load/`), raised once from 600 in
-  phase 7 because the three thesis tests carry their own doubles; 600 lines of Bicep, raised once
-  from 500 in phase 3 because the specification's own resource list did not fit even after
-  compaction; 500 of YAML under `k8s/`; 700 of TypeScript; fewer than 25 comment lines. The actual
-  counts are recorded here at the end of every phase.
+  `CLAUDE.md`: at most 80 tracked files outside `docs/`; 1,700 lines of application Python (`app/`,
+  `ops/`, `functions/`), raised once from 1,200 in phase 8 because onboarding and chargeback did not
+  fit the 170 lines the specification's module table gives them, and 900 of support Python (`tests/`,
+  `load/`), raised once from 600 in phase 7 because the three thesis tests carry their own doubles;
+  600 lines of Bicep, raised once from 500 in phase 3 because the specification's own resource list
+  did not fit even after compaction; 500 of YAML under `k8s/`; 700 of TypeScript; fewer than 25
+  comment lines. The actual counts are recorded here at the end of every phase.

@@ -9,8 +9,13 @@ CRD_SCHEMAS := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.G
 KUBECTL ?= kubectl
 KUBECONFORM ?= kubeconform
 KUSTOMIZATIONS := k8s/overlays/starter k8s/overlays/business k8s/overlays/enterprise k8s/platform
+REGISTRY ?= $(REGISTRY_NAME)
+TAG ?= $(shell git rev-parse --short HEAD)
+PLAN ?= starter
+PII ?= none
+MONTH ?= $(shell date -d "$$(date +%Y-%m-01) -1 day" +%Y-%m)
 
-.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start kube-validate
+.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start kube-validate console image onboard chargeback
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -52,6 +57,18 @@ stop:
 
 start:
 	az aks start -g $(RESOURCE_GROUP) -n $(CLUSTER)
+
+console:
+	cd console && npm ci --no-audit --no-fund && npm run build
+
+image:
+	PYTHONIOENCODING=utf-8 az acr build --registry $(REGISTRY) --image gateway:$(TAG) --file Dockerfile .
+
+onboard:
+	$(PYTHON) -m ops.onboard --name "$(NAME)" --plan $(PLAN) --pii $(PII)
+
+chargeback:
+	$(PYTHON) -m ops.chargeback --month $(MONTH) --output docs/benchmarks/chargeback-$(MONTH).md
 
 kube-validate:
 	@for dir in $(KUSTOMIZATIONS); do \
