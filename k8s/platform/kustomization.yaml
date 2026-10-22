@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: platform
+resources:
+  - namespace.yaml
+  - gateway.yaml
+  - meter-drain.yaml
+  - onboarding.yaml
+  - keda-scaledobject.yaml
+  - networkpolicy.yaml
+generatorOptions:
+  disableNameSuffixHash: true
+configMapGenerator:
+  - name: gateway-settings
+    envs: [../settings.env]

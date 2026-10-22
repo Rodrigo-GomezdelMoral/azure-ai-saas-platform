@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: t-tenant
+resources:
+  - ../../base
+labels:
+  - pairs: { saas.tier: enterprise }
+    includeSelectors: false
+patches:
+  - target: { kind: ResourceQuota, name: tier }
+    patch: |-
+      - { op: replace, path: /spec/hard, value: { requests.cpu: "4", requests.memory: 4Gi, limits.cpu: "8", limits.memory: 8Gi, pods: "40" } }
+  - target: { kind: LimitRange, name: tier }
+    patch: |-
+      - { op: replace, path: /spec/limits/0/default, value: { cpu: "1", memory: 1Gi } }
+      - { op: replace, path: /spec/limits/0/max, value: { cpu: "2", memory: 2Gi } }
+  - target: { kind: HorizontalPodAutoscaler, name: gateway }
+    patch: |-
+      - { op: replace, path: /spec/minReplicas, value: 2 }
+      - { op: replace, path: /spec/maxReplicas, value: 10 }
+  - target: { kind: Deployment, name: gateway }
+    patch: |-
+      - { op: replace, path: /spec/replicas, value: 2 }
+      - { op: replace, path: /spec/template/spec/priorityClassName, value: tenant-enterprise }
+      - { op: replace, path: /spec/template/spec/containers/0/env/0/value, value: tenant }
+      - { op: replace, path: /spec/template/spec/containers/0/resources, value: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "2", memory: 1Gi } } }
+      - { op: replace, path: /spec/template/spec/tolerations, value: [{ key: tier, operator: Equal, value: enterprise, effect: NoSchedule }] }
+      - { op: replace, path: /spec/template/spec/affinity, value: { nodeAffinity: { requiredDuringSchedulingIgnoredDuringExecution: { nodeSelectorTerms: [{ matchExpressions: [{ key: tier, operator: In, values: [enterprise] }] }] } } } }
+  - target: { kind: HTTPRoute, name: gateway }
+    patch: |-
+      - { op: replace, path: /spec/rules/0/matches/0/path/value, value: /t/tenant }
+      - { op: add, path: /spec/rules/0/filters, value: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: / } } }] }

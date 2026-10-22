@@ -1,0 +1,30 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: t-tenant
+resources:
+  - ../../base
+labels:
+  - pairs: { saas.tier: business }
+    includeSelectors: false
+patches:
+  - target: { kind: ResourceQuota, name: tier }
+    patch: |-
+      - { op: replace, path: /spec/hard, value: { requests.cpu: "2", requests.memory: 2Gi, limits.cpu: "4", limits.memory: 4Gi, pods: "20" } }
+  - target: { kind: LimitRange, name: tier }
+    patch: |-
+      - { op: replace, path: /spec/limits/0/default, value: { cpu: 500m, memory: 512Mi } }
+      - { op: replace, path: /spec/limits/0/max, value: { cpu: "1", memory: 1Gi } }
+  - target: { kind: HorizontalPodAutoscaler, name: gateway }
+    patch: |-
+      - { op: replace, path: /spec/minReplicas, value: 2 }
+      - { op: replace, path: /spec/maxReplicas, value: 5 }
+  - target: { kind: Deployment, name: gateway }
+    patch: |-
+      - { op: replace, path: /spec/replicas, value: 2 }
+      - { op: replace, path: /spec/template/spec/priorityClassName, value: tenant-business }
+      - { op: replace, path: /spec/template/spec/containers/0/env/0/value, value: tenant }
+      - { op: replace, path: /spec/template/spec/containers/0/resources, value: { requests: { cpu: 250m, memory: 384Mi }, limits: { cpu: "1", memory: 768Mi } } }
+  - target: { kind: HTTPRoute, name: gateway }
+    patch: |-
+      - { op: replace, path: /spec/rules/0/matches/0/path/value, value: /t/tenant }
+      - { op: add, path: /spec/rules/0/filters, value: [{ type: URLRewrite, urlRewrite: { path: { type: ReplacePrefixMatch, replacePrefixMatch: / } } }] }

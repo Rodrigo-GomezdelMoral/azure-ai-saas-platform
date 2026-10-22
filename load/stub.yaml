@@ -1,0 +1,72 @@
+# The upstream stub: replays the RAG platform's recorded /v1/answer stream so that load tests measure the gateway
+# and never spend model tokens. It answers every question with the same verified answer at 0.01 € (one cent), which
+# is what makes the monthly quota bite during the noisy-neighbour run. Deployed only for load tests; see docs/benchmarks.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: upstream-stub
+  namespace: platform
+data:
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    events { worker_connections 1024; }
+    http {
+      access_log off;
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      fastcgi_temp_path /tmp/fastcgi_temp;
+      uwsgi_temp_path /tmp/uwsgi_temp;
+      scgi_temp_path /tmp/scgi_temp;
+      server {
+        listen 8080;
+        location /healthz { return 200 "ok\n"; }
+        location /v1/answer {
+          default_type text/event-stream;
+          return 200 "event: plan\ndata: {\"phase\": \"plan\"}\n\nevent: verify\ndata: {\"trace_id\": \"stub\", \"claims\": [{\"text\": \"Article 10 requires data governance.\", \"chunk_ids\": [\"c1\"], \"citation_label\": \"AI Act art. 10\"}], \"citations\": [], \"refusal\": null, \"cost_eur\": 0.01}\n\n";
+        }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: upstream-stub
+  namespace: platform
+  labels: { app: upstream-stub }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: upstream-stub }
+  template:
+    metadata:
+      labels: { app: upstream-stub }
+    spec:
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: nginx
+          image: nginxinc/nginx-unprivileged:1.29.8-alpine
+          args: [nginx, -c, /etc/nginx/stub.conf, -g, "daemon off;"]
+          ports: [{ name: http, containerPort: 8080 }]
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 500m, memory: 64Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 5 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 30 }
+          volumeMounts:
+            - { name: config, mountPath: /etc/nginx/stub.conf, subPath: nginx.conf, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: config, configMap: { name: upstream-stub } }
+        - { name: tmp, emptyDir: {} }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: upstream-stub
+  namespace: platform
+spec:
+  selector: { app: upstream-stub }
+  ports: [{ name: http, port: 8080, targetPort: http }]

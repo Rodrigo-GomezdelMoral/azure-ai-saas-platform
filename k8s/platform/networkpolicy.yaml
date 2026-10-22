@@ -1,0 +1,36 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workers-default-deny
+spec:
+  podSelector:
+    matchExpressions: [{ key: app, operator: In, values: [meter-drain, onboarding, upstream-stub] }]
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: workers-egress
+spec:
+  podSelector:
+    matchExpressions: [{ key: app, operator: In, values: [meter-drain, onboarding] }]
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+          podSelector: { matchLabels: { k8s-app: kube-dns } }
+      ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
+    - to: [{ ipBlock: { cidr: 0.0.0.0/0, except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16] } }]
+      ports: [{ port: 443, protocol: TCP }, { port: 10000, protocol: TCP }, { port: 5671, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: stub-ingress-from-tenants
+spec:
+  podSelector:
+    matchLabels: { app: upstream-stub }
+  policyTypes: [Ingress]
+  ingress:
+    - from: [{ namespaceSelector: { matchLabels: { saas.tenant: "true" } } }]
+      ports: [{ port: 8080, protocol: TCP }]

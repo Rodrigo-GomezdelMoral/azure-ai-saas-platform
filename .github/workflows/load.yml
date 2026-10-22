@@ -1,0 +1,110 @@
+name: load
+
+# Runs the k6 scenarios against the deployed gateway and the in-cluster stub, never against the RAG platform. The
+# results come back as an artifact and as the job summary; the author commits the ones worth publishing under
+# docs/benchmarks/, because nothing pushes to a protected main. The load tenants exist beforehand (docs/benchmarks).
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: baseline, noisy-neighbour, onboarding or all
+        default: all
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  RESOURCE_GROUP: rg-aisaas-prod-swc
+  CLUSTER: aks-aisaas-prod-swc
+  API_AUDIENCE: ${{ vars.API_AUDIENCE }}
+  NOISY_TOKEN: ${{ secrets.LOAD_STARTER_TOKEN }}
+  PROTECTED_TOKEN: ${{ secrets.LOAD_BUSINESS_TOKEN }}
+  PROTECTED_PREFIX: ${{ vars.LOAD_BUSINESS_PREFIX }}
+  RESULTS_DIR: load/results
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - uses: azure/setup-kubectl@v5
+        with:
+          version: v1.36.5
+
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.21
+
+      - uses: grafana/setup-k6-action@v1.2.2
+
+      - name: Find the Gateway and deploy the upstream stub
+        run: |
+          az aks get-credentials -g "$RESOURCE_GROUP" -n "$CLUSTER" --overwrite-existing --only-show-errors
+          kubelogin convert-kubeconfig -l azurecli
+          kubectl apply -f load/stub.yaml
+          kubectl -n platform rollout status deployment/upstream-stub --timeout=120s
+          address=$(kubectl -n platform get gateway saas -o jsonpath='{.status.addresses[0].value}')
+          echo "GATEWAY_URL=http://$address" >> "$GITHUB_ENV"
+          echo "TENANT_TOKEN=$PROTECTED_TOKEN" >> "$GITHUB_ENV"
+          echo "ROUTE_PREFIX=$PROTECTED_PREFIX" >> "$GITHUB_ENV"
+          mkdir -p "$RESULTS_DIR"
+
+      - name: Baseline
+        if: inputs.scenario == 'all' || inputs.scenario == 'baseline'
+        run: k6 run load/baseline.js
+
+      - name: Noisy neighbour with quota enforcement on
+        if: inputs.scenario == 'all' || inputs.scenario == 'noisy-neighbour'
+        run: ENFORCE=on k6 run load/noisy-neighbour.js
+
+      - name: Noisy neighbour with quota enforcement off
+        if: inputs.scenario == 'all' || inputs.scenario == 'noisy-neighbour'
+        run: |
+          kubectl -n tenants-starter set env deployment/gateway ENFORCE_QUOTA=false
+          kubectl -n tenants-starter rollout status deployment/gateway --timeout=180s
+          ENFORCE=off k6 run load/noisy-neighbour.js
+
+      - name: Restore quota enforcement
+        if: always() && (inputs.scenario == 'all' || inputs.scenario == 'noisy-neighbour')
+        run: |
+          kubectl -n tenants-starter set env deployment/gateway ENFORCE_QUOTA-
+          kubectl -n tenants-starter rollout status deployment/gateway --timeout=180s
+
+      - name: Concurrent onboarding
+        if: inputs.scenario == 'all' || inputs.scenario == 'onboarding'
+        run: |
+          ADMIN_TOKEN=$(az account get-access-token --scope "api://$API_AUDIENCE/.default" --query accessToken -o tsv)
+          export ADMIN_TOKEN RUN_ID="${GITHUB_RUN_NUMBER}"
+          k6 run load/onboarding.js
+
+      - name: Summarise the results
+        if: always()
+        run: |
+          python3 - "$RESULTS_DIR" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json, pathlib, sys
+          print("| Result | Requests | Failed | p50 ms | p95 ms | p99 ms |\n|---|---:|---:|---:|---:|---:|")
+          for path in sorted(pathlib.Path(sys.argv[1]).glob("*.json")):
+              metrics = json.loads(path.read_text())["metrics"]
+              duration = metrics.get("http_req_duration", {}).get("values", {})
+              reqs = metrics.get("http_reqs", {}).get("values", {}).get("count", 0)
+              failed = metrics.get("http_req_failed", {}).get("values", {}).get("rate", 0)
+              cells = [path.stem, str(reqs), f"{failed:.2%}"] + [f"{duration.get(k, 0):.0f}" for k in ("p(50)", "p(95)", "p(99)")]
+              print("| " + " | ".join(cells) + " |")
+          PY
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: load-results-${{ github.run_number }}
+          path: load/results/
+          if-no-files-found: warn

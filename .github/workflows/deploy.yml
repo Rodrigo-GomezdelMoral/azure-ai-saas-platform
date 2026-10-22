@@ -1,0 +1,77 @@
+name: deploy
+
+# Rolls the gateway image out to the cluster: build and push to the shared registry, render the deploy-time wrappers
+# from the deployment's outputs, apply the platform and the starter namespace, wait for the rollouts and roll back the
+# ones that fail. The infrastructure template itself is deployed from a workstation (make deploy), as the README says.
+# OIDC subject: environment:production, the third federated credential of the CI principal.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  RESOURCE_GROUP: rg-aisaas-prod-swc
+  CLUSTER: aks-aisaas-prod-swc
+  ENTRA_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  API_AUDIENCE: ${{ vars.API_AUDIENCE }}
+  UPSTREAM_AUDIENCE: ${{ vars.UPSTREAM_AUDIENCE }}
+  UPSTREAM_URL: ${{ vars.UPSTREAM_URL }}
+  PYTHON: python3
+
+jobs:
+  rollout:
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Read the deployment's outputs into the job
+        run: |
+          make deployment-env >> "$GITHUB_ENV"
+          echo "TAG=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Build the image and push it to the shared registry
+        run: |
+          az acr login --name "${REGISTRY_LOGIN_SERVER%%.*}" --only-show-errors
+          docker build --quiet --tag "$REGISTRY_LOGIN_SERVER/gateway:$TAG" .
+          docker push --quiet "$REGISTRY_LOGIN_SERVER/gateway:$TAG"
+
+      - uses: azure/setup-kubectl@v5
+        with:
+          version: v1.36.5
+
+      - uses: azure/use-kubelogin@v1
+        with:
+          kubelogin-version: v0.2.21
+
+      - name: Connect to the cluster with the workflow's identity
+        run: |
+          az aks get-credentials -g "$RESOURCE_GROUP" -n "$CLUSTER" --overwrite-existing --only-show-errors
+          kubelogin convert-kubeconfig -l azurecli
+
+      - name: Render the wrappers and apply the platform and the starter namespace
+        run: |
+          bash k8s/render.sh
+          make apply-k8s
+
+      - name: Wait for the rollouts
+        id: rollout
+        run: make rollout
+
+      - name: Roll back the deployments that did not become ready
+        if: failure() && steps.rollout.conclusion == 'failure'
+        run: make rollback

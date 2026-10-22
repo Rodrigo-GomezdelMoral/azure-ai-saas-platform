@@ -1,5 +1,6 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -57,6 +58,12 @@ class Isolation(BaseModel):
         return cls(namespace=dedicated, index=dedicated, database=dedicated, container="usage")
 
 
+def tenant_id_from(name: str) -> str:
+    """The identifier a company name maps to: lowercase, hyphenated and bounded; the same name gives the same id."""
+    slug = "".join(char if char.isalnum() else "-" for char in name.lower()).strip("-")
+    return "-".join(part for part in slug.split("-") if part)[:31].rstrip("-")
+
+
 class Tenant(BaseModel):
     id: str = Field(pattern=r"^[a-z][a-z0-9-]{2,30}$")
     name: str = Field(min_length=2, max_length=80)
@@ -66,10 +73,24 @@ class Tenant(BaseModel):
     client_id: str | None = None
     created: datetime
     suspended: bool = False
+    status: Literal["provisioning", "ready", "failed"] = "ready"
 
     @property
     def quota(self) -> Quota:
         return PLANS[self.plan]
+
+
+class Order(BaseModel):
+    """An onboarding request; `seal` is the requester's public key, so the credential comes back sealed to it."""
+
+    name: str = Field(min_length=2, max_length=80)
+    plan: Plan
+    pii: PiiPolicy = PiiPolicy.NONE
+    seal: dict[str, str] | None = None
+
+    @property
+    def tenant_id(self) -> str:
+        return tenant_id_from(self.name)
 
 
 class Credential(BaseModel):
@@ -83,13 +104,21 @@ class Credential(BaseModel):
 
 
 class UsageEvent(BaseModel):
+    """One request's usage, written to the stream by the gateway and folded into a BillingPeriod by the Function."""
+
     tenant_id: str
     trace_id: str
+    database: str
+    container: str
     cents: int = Field(ge=0)
     cached: bool = False
     redacted: bool = False
     upstream_ms: int = Field(default=0, ge=0)
     occurred: datetime
+
+    def fields(self) -> dict[Any, Any]:
+        dumped = self.model_dump(mode="json")
+        return {name: int(value) if isinstance(value, bool) else value for name, value in dumped.items()}
 
 
 class BillingPeriod(BaseModel):

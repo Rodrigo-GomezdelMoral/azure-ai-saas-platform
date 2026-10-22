@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels: { app: gateway }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: gateway }
+  template:
+    metadata:
+      labels: { app: gateway, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: gateway
+      automountServiceAccountToken: false
+      priorityClassName: tenant-starter
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
+      tolerations:
+        - { key: kubernetes.azure.com/scalesetpriority, operator: Equal, value: spot, effect: NoSchedule }
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              preference:
+                matchExpressions: [{ key: kubernetes.azure.com/scalesetpriority, operator: In, values: [spot] }]
+      containers:
+        - name: gateway
+          image: gateway:0.0.0
+          args: [uvicorn, app.main:app, --host, 0.0.0.0, --port, "8000"]
+          ports: [{ name: http, containerPort: 8000 }]
+          envFrom: [{ configMapRef: { name: gateway-settings } }]
+          env:
+            - { name: TENANT_SCOPE, value: starter }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { cpu: 500m, memory: 512Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          readinessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 10 }
+          livenessProbe: { httpGet: { path: /healthz, port: http }, periodSeconds: 30, failureThreshold: 3 }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes: [{ name: tmp, emptyDir: {} }]

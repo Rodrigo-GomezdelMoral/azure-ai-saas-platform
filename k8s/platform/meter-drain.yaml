@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: meter-drain
+  annotations:
+    azure.workload.identity/client-id: 00000000-0000-0000-0000-000000000000
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meter-drain
+  labels: { app: meter-drain }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: meter-drain }
+  template:
+    metadata:
+      labels: { app: meter-drain, azure.workload.identity/use: "true" }
+    spec:
+      serviceAccountName: meter-drain
+      automountServiceAccountToken: false
+      securityContext: { runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: meter-drain
+          image: gateway:0.0.0
+          args: [python, -m, app.metering]
+          envFrom: [{ configMapRef: { name: gateway-settings } }]
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { cpu: 250m, memory: 256Mi }
+          securityContext: { allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: { drop: [ALL] } }
+          readinessProbe: { exec: { command: [sh, -c, "test -n \"$(find /tmp/alive -mmin -2)\""] }, periodSeconds: 30 }
+          livenessProbe: { exec: { command: [sh, -c, "test -n \"$(find /tmp/alive -mmin -5)\""] }, periodSeconds: 60, failureThreshold: 3 }
+          volumeMounts: [{ name: tmp, mountPath: /tmp }]
+      volumes: [{ name: tmp, emptyDir: {} }]

@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     tenant_role_prefix: str = "tenant:"
     tenant_scope: str = ""
     require_auth: bool = True
+    enforce_quota: bool = True
     redis_host: str
     redis_port: int = Field(default=10000, ge=1, le=65535)
     cosmos_endpoint: str
@@ -31,6 +32,12 @@ class Settings(BaseSettings):
     shared_index: str = "regulations"
     keyvault_url: str
     signing_key_name: str = "credential-signing"
+    gateway_client_id: str = ""
+    gateway_image: str = "gateway:0.0.0"
+    gateway_identity_id: str = ""
+    cosmos_account_id: str = ""
+    oidc_issuer: str = ""
+    onboard_workdir: str = "k8s/.generated"
     upstream_url: str
     upstream_audience: str
     upstream_timeout_s: float = Field(default=90.0, gt=0)
