@@ -69,7 +69,7 @@ The network between tenants is default deny, the only networking this portfolio 
 | The request path never writes billing data synchronously | Redis Stream → consumer group → Service Bus → Function → Cosmos (`app/metering.py`, `functions/aggregate.py`, ADR-004) |
 | The RAG platform is consumed over HTTP against its contract, with a circuit breaker and a stated degradation | `app/upstream.py`, `docs/upstream-openapi.json`, `tests/test_gateway.py::test_circuit_breaker_opens_after_failures_and_probes_after_the_reset` (ADR-007) |
 | The PII policy is per tenant and respects the service limits | `app/privacy.py`, `tests/test_gateway.py::test_pii_policy_decides_what_leaves_and_what_is_kept`, `test_redaction_respects_the_service_limits` (ADR-008) |
-| A customer is onboarded in under two minutes with every artefact the plan sells | `ops/onboard.py`, `tests/test_operations.py`, `docs/onboarding.md`; measured on 2026-10-24 from a workstation at 9 to 14 s for Starter and 63 s for Business (`docs/benchmarks/2026-10-24-onboarding.md`); concurrent onboarding is `load/onboarding.js` |
+| A customer is onboarded in under two minutes with every artefact the plan sells | `ops/onboard.py`, `tests/test_operations.py`, `docs/onboarding.md`; measured on 2026-10-24 from a workstation at 9 to 14 s for Starter and 63 s for Business (`docs/benchmarks/2026-10-24-onboarding.md`); ten at once through the admin API were ready at a p95 of 16.3 s (`docs/benchmarks/2026-10-25-load.md`) |
 | The cost per tenant comes from two independent sources, reconciled | `ops/chargeback.py`, `tests/test_operations.py::test_chargeback_reconciles_both_sources_and_explains_the_gap`, `docs/cost.md` |
 | No plaintext credential is persisted anywhere | hashes in Cosmos, signing in Key Vault, sealed delivery to the console (`docs/security.md`) |
 
@@ -140,9 +140,14 @@ Entra tokens. `docs/onboarding.md` has the per-plan table, the prerequisites and
 
 `load/` holds the three k6 scenarios, baseline, noisy neighbour and concurrent onboarding, and the
 in-cluster stub they run against so that no load test ever spends a model token. `docs/benchmarks/`
-records the method and will hold each published run with its date, configuration and SKUs; no result is
-published yet, because the cluster has not run under load. The noisy-neighbour run publishes the
-protected tenant's p95 with and without quota enforcement, the one chart the thesis rests on.
+records the method and each published run with its date, configuration and SKUs. The run of 2026-10-25
+(`docs/benchmarks/2026-10-25-load.md`) measured a p95 of 534 to 564 ms from 5 to 40 requests a second,
+above the 500 ms objective by the embedding round trip, and a ceiling between 40 and 80 requests a
+second. Under a Starter tenant's flood, the protected Business tenant answered every request, at a p95 of
+524 ms with quota enforcement and 596 ms without; ten concurrent onboardings were ready at a p95 of 16.3 s.
+
+![The protected tenant's p50, p95 and p99 with quota enforcement on and off](docs/benchmarks/2026-10-25-noisy-neighbour.svg)
+
 `docs/operations/slo.md` states the objectives per tier, the error budget policy, the designed order of
 degradation and the disaster recovery runbook with its RTO and RPO.
 
@@ -215,7 +220,9 @@ and the test that mitigates it.
   which the platform and tenant namespaces enforce.
 - **HTTP on the public IP.** The estate owns no domain, so the listener has no certificate (ADR-011).
 - **No Front Door, no private networking, no agent**, each a recorded decision (ADR-011, ADR-013, ADR-012).
-- **The load tests run against a stub**, and no result is published until the cluster has run under load.
+- **The load tests run against a stub**, so they measure the gateway and not the RAG platform. The
+  measured p95 misses its 500 ms objective, and with enforcement on a flood still drew 500s instead of
+  429s once the Redis client's pool of 100 connections ran out (`docs/benchmarks/2026-10-25-load.md`).
 - **Starter customers authenticate with a platform credential**, Business and Enterprise customers with
   either the credential or an Entra token from their own app registration; client credentials for that
   registration are issued by the platform operator on request.

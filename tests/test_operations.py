@@ -68,9 +68,7 @@ def services(settings: Settings, keys: Keys, redis: Any, tmp_path: Path) -> Serv
     return Services(settings.model_copy(update=extra), FakeCredential(), http, *fakes, AsyncMock(), apply)  # type: ignore[arg-type]
 
 
-async def test_business_onboarding_creates_every_artefact_and_a_credential_that_resolves(
-    services: Services, keys: Keys, tmp_path: Path
-) -> None:
+async def test_business_onboarding_creates_every_artefact(services: Services, keys: Keys, tmp_path: Path) -> None:
     store = CosmosTenantStore(services.tenants, services.credentials)
     assert await store.signing_keys() == []
     tenant, issued = await Onboarding(services).run(Order(name="Globex", plan=Plan.BUSINESS), log=lambda _: None)

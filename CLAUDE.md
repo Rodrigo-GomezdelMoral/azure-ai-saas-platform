@@ -217,7 +217,8 @@ Kubernetes 1.36 (the AKS default in Sweden Central), validated with `kubeconform
   policy is an empty `podSelector` with both policy types; the only ingress to a tenant gateway is
   from the `ingress` namespace, where the Gateway's proxies run (it enforces `baseline`, because the
   AKS-managed proxy sets no seccomp profile); egress is DNS, the public Azure
-  endpoints on 443 and 10000 with the private ranges excluded, and the load stub.
+  endpoints on 443, 10000 and 5671 (AMQP to Service Bus for the admin route's onboarding orders) with the
+  private ranges excluded, and the load stub.
 - **Tier arithmetic.** Starter: quota 1 CPU / 1 Gi requests, 2 / 2 Gi limits, 10 pods, HPA 1–3;
   Business: 2 / 2 Gi, 4 / 4 Gi, 20 pods, HPA 2–5, priority 10,000; Enterprise: 4 / 4 Gi, 8 / 8 Gi,
   40 pods, HPA 2–10, priority 100,000 with preemption, dedicated pool. Each pod is sized so that the HPA

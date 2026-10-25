@@ -1,11 +1,12 @@
+import asyncio
 import json
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 import httpx
@@ -52,6 +53,7 @@ class Gateway:
     meter: Meter
     tenants: ContainerProxy | None = None
     onboard: Any = None
+    onboarding: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 async def build(settings: Settings) -> Gateway:
@@ -106,8 +108,7 @@ async def rejected(request: Request, error: Exception) -> JSONResponse:
 
 
 def principal(request: Request) -> Principal:
-    found: Principal = request.scope["state"]["principal"]
-    return found
+    return cast(Principal, request.scope["state"]["principal"])
 
 
 def usage_event(tenant: Tenant, cents: float, cached: bool, redacted: bool, upstream_ms: int) -> UsageEvent:
@@ -187,15 +188,15 @@ async def usage(request: Request) -> dict[str, Any]:
 def admin(request: Request) -> Gateway:
     if not principal(request).admin:
         raise AccessError(403, "the platform admin role is required")
-    gateway: Gateway = request.app.state.gateway
-    return gateway
+    return cast(Gateway, request.app.state.gateway)
 
 
 @routes.post("/admin/tenants", status_code=202)
 async def onboard(body: Order, request: Request) -> dict[str, str]:
     gateway = admin(request)
     order = {"tenant_id": body.tenant_id, "requested": datetime.now(UTC).isoformat()} | body.model_dump(mode="json")
-    await gateway.onboard.send_messages(ServiceBusMessage(json.dumps(order), content_type="application/json"))
+    async with gateway.onboarding:
+        await gateway.onboard.send_messages(ServiceBusMessage(json.dumps(order), content_type="application/json"))
     return {"tenant": body.tenant_id, "status": "queued"}
 
 
@@ -232,9 +233,8 @@ async def console_config(request: Request) -> dict[str, str]:
 
 @routes.get("/healthz")
 async def healthz(request: Request) -> JSONResponse:
-    gateway: Gateway = request.app.state.gateway
     try:
-        await gateway.quotas.redis.ping()
+        await request.app.state.gateway.quotas.redis.ping()
     except (OSError, ConnectionError) as error:
         return JSONResponse({"status": "degraded", "redis": type(error).__name__}, 503)
     return JSONResponse({"status": "ok"})

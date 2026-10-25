@@ -52,7 +52,7 @@ graph LR
         LB["Standard load balancer<br/>one public IP, HTTP listener on port 80"] --> GWP["Gateway proxies<br/>namespace ingress"]
         GWP --> NS1["tenants-starter<br/>default deny · ingress from platform only"]
         GWP --> NS2["t-{id} per dedicated tenant<br/>default deny · ingress from platform only"]
-        NS1 -. "egress: DNS, TCP 443 and 10000 to public ranges only" .-> OUT["Outbound through the load balancer"]
+        NS1 -. "egress: DNS, TCP 443, 10000 and 5671 to public ranges only" .-> OUT["Outbound through the load balancer"]
         NS2 -. "same policy" .-> OUT
     end
     CL --> LB
