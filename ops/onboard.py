@@ -49,7 +49,7 @@ from app.tenancy import CREDENTIAL_ISSUER, JWKS_DOCUMENT, JWKS_PARTITION, digest
 ARM, GRAPH = "https://management.azure.com", "https://graph.microsoft.com/v1.0"
 ARM_SCOPE, GRAPH_SCOPE = f"{ARM}/.default", "https://graph.microsoft.com/.default"
 COSMOS_API, IDENTITY_API, EXCHANGE = "2025-10-15", "2024-11-30", "api://AzureADTokenExchange"
-PENDING = ("InProgress", "Enqueued", "Accepted", "Running")
+TERMINAL = ("Succeeded", "Failed", "Canceled")
 DEDICATED = ("gateway_client_id", "gateway_identity_id", "cosmos_account_id", "oidc_issuer")
 CREDENTIAL_DAYS = 365
 HEARTBEAT = Path("/tmp/alive")
@@ -161,11 +161,11 @@ class Onboarding:
         response = await self.request(ARM_SCOPE, "PUT", url, body)
         poll = response.headers.get("azure-asyncoperation", "")
         status = "InProgress" if response.status_code == 202 else "Succeeded"
-        while status in PENDING and poll:
+        while status not in TERMINAL and poll:
             await asyncio.sleep(2)
             status = str((await self.request(ARM_SCOPE, "GET", poll)).json().get("status", "Succeeded"))
         if status != "Succeeded":
-            raise OnboardingError(f"{url.split('?')[0]} ended {status}")
+            raise OnboardingError(f"{url.split('?')[0].split('/providers/')[-1]} ended {status}")
 
     async def register(self, tenant: Tenant) -> str:
         if tenant.plan is Plan.STARTER:
@@ -248,7 +248,7 @@ class Onboarding:
         try:
             await make(definition)
         except HttpResponseError as error:
-            if error.status_code != 409:
+            if error.status_code != 409 and "already exists" not in str(error):
                 raise
 
     async def store(self, tenant: Tenant) -> str:

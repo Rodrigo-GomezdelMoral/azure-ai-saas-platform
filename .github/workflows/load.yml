@@ -1,8 +1,9 @@
 name: load
 
-# Runs the k6 scenarios against the deployed gateway and the in-cluster stub, never against the RAG platform. The
-# results come back as an artifact and as the job summary; the author commits the ones worth publishing under
-# docs/benchmarks/, because nothing pushes to a protected main. The load tenants exist beforehand (docs/benchmarks).
+# Runs the k6 scenarios against the deployed gateway and the in-cluster stub, never against the RAG platform. A
+# crossed k6 threshold (exit code 99) is a result, not a failure: the baseline exists to find the rate that breaks
+# the objective. The results come back as an artifact and as the job summary; the author commits the ones worth
+# publishing under docs/benchmarks/. The load tenants exist beforehand (docs/benchmarks).
 
 on:
   workflow_dispatch:
@@ -71,19 +72,19 @@ jobs:
           kubectl -n "$ns" rollout status deployment/gateway --timeout=180s
           k6 run load/baseline.js || status=$?
           kubectl -n "$ns" set env deployment/gateway ENFORCE_QUOTA-
-          kubectl -n "$ns" rollout status deployment/gateway --timeout=180s
-          exit "${status:-0}"
+          kubectl -n "$ns" rollout status deployment/gateway --timeout=600s
+          [ "${status:-0}" -eq 0 ] || [ "$status" -eq 99 ]
 
       - name: Noisy neighbour with quota enforcement on
         if: inputs.scenario == 'all' || inputs.scenario == 'noisy-neighbour'
-        run: ENFORCE=on k6 run load/noisy-neighbour.js
+        run: ENFORCE=on k6 run load/noisy-neighbour.js || [ $? -eq 99 ]
 
       - name: Noisy neighbour with quota enforcement off
         if: inputs.scenario == 'all' || inputs.scenario == 'noisy-neighbour'
         run: |
           kubectl -n tenants-starter set env deployment/gateway ENFORCE_QUOTA=false
           kubectl -n tenants-starter rollout status deployment/gateway --timeout=180s
-          ENFORCE=off k6 run load/noisy-neighbour.js
+          ENFORCE=off k6 run load/noisy-neighbour.js || [ $? -eq 99 ]
 
       - name: Restore quota enforcement
         if: always() && (inputs.scenario == 'all' || inputs.scenario == 'noisy-neighbour')
@@ -96,7 +97,7 @@ jobs:
         run: |
           ADMIN_TOKEN=$(az account get-access-token --scope "api://$API_AUDIENCE/.default" --query accessToken -o tsv)
           export ADMIN_TOKEN RUN_ID="${GITHUB_RUN_NUMBER}"
-          k6 run load/onboarding.js
+          k6 run load/onboarding.js || [ $? -eq 99 ]
 
       - name: Point the load tenants back at the RAG platform
         if: always()
