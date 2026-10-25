@@ -11,7 +11,7 @@ diagram per tier, the request path and the identities.
 
 ```mermaid
 graph TB
-    C["Customer applications<br/>Entra token or platform credential"] --> GW["Gateway API · approuting-istio<br/>namespace platform, one public IP"]
+    C["Customer applications<br/>Entra token or platform credential"] --> GW["Gateway API · approuting-istio<br/>namespace ingress, one public IP"]
     ADM["Admin console<br/>/console, Entra sign-in"] --> GW
     GW -->|"/v1 → tenants-starter"| S["Starter gateway deployment<br/>shared namespace, TENANT_SCOPE=starter"]
     GW -->|"/t/{id} → t-{id}"| D["Dedicated gateway deployments<br/>Business and Enterprise namespaces"]
@@ -49,7 +49,7 @@ graph LR
         CL["Customers and the operator"]
     end
     subgraph vnet["AKS managed virtual network · Azure CNI overlay · Cilium data plane and policy"]
-        LB["Standard load balancer<br/>one public IP, TLS at the Gateway listener"] --> GWP["Gateway proxies<br/>namespace platform"]
+        LB["Standard load balancer<br/>one public IP, HTTP listener on port 80"] --> GWP["Gateway proxies<br/>namespace ingress"]
         GWP --> NS1["tenants-starter<br/>default deny · ingress from platform only"]
         GWP --> NS2["t-{id} per dedicated tenant<br/>default deny · ingress from platform only"]
         NS1 -. "egress: DNS, TCP 443 and 10000 to public ranges only" .-> OUT["Outbound through the load balancer"]
@@ -75,7 +75,7 @@ graph LR
     subgraph starter["Starter · shared"]
         direction TB
         SN["namespace tenants-starter<br/>one gateway deployment for every Starter tenant<br/>HPA 1–3 · ResourceQuota 1 CPU / 1 Gi · priority 1,000"]
-        SR["Redis keys quota:{id}:* and index idx:cache:{id}"]
+        SR["Redis keys quota:{{id}}:* and index idx:cache:{id}"]
         SI["shared index regulations, scoped by the gateway"]
         SC["Cosmos: partition /tenantId in the shared usage container"]
         SK["Key-Vault-signed credential, no Entra object"]
@@ -129,7 +129,7 @@ sequenceDiagram
         G->>U: POST /v1/answer as id-saasgw (Rag.Query)
         U-->>G: plan, search, rerank, answer, verify
         G-->>C: the same events, unchanged
-        G->>R: SETTLE round(cost_eur × 100), XADD the usage event
+        G->>R: SETTLE cost_eur × 100 in fractions of a cent, XADD the usage event
         G->>R: remember the answer in the tenant's index
     end
 ```

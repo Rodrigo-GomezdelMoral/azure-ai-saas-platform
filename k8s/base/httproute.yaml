@@ -4,7 +4,7 @@ metadata:
   name: gateway
 spec:
   parentRefs:
-    - { name: saas, namespace: platform }
+    - { name: saas, namespace: ingress }
   rules:
     - matches: [{ path: { type: PathPrefix, value: /v1 } }]
       backendRefs: [{ name: gateway, port: 80 }]

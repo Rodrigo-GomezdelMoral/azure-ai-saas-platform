@@ -15,3 +15,4 @@ param landingZone = {
 param cicdPrincipalId = readEnvironmentVariable('CICD_PRINCIPAL_ID')
 param operatorObjectId = readEnvironmentVariable('OPERATOR_OBJECT_ID')
 param vaultCreateMode = readEnvironmentVariable('VAULT_CREATE_MODE', 'default')
+param nodeGroupExists = bool(readEnvironmentVariable('NODE_GROUP_EXISTS', 'false'))

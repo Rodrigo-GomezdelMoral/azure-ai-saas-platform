@@ -69,7 +69,7 @@ The network between tenants is default deny, the only networking this portfolio 
 | The request path never writes billing data synchronously | Redis Stream → consumer group → Service Bus → Function → Cosmos (`app/metering.py`, `functions/aggregate.py`, ADR-004) |
 | The RAG platform is consumed over HTTP against its contract, with a circuit breaker and a stated degradation | `app/upstream.py`, `docs/upstream-openapi.json`, `tests/test_gateway.py::test_circuit_breaker_opens_after_failures_and_probes_after_the_reset` (ADR-007) |
 | The PII policy is per tenant and respects the service limits | `app/privacy.py`, `tests/test_gateway.py::test_pii_policy_decides_what_leaves_and_what_is_kept`, `test_redaction_respects_the_service_limits` (ADR-008) |
-| A customer is onboarded in under two minutes with every artefact the plan sells | `ops/onboard.py`, `tests/test_operations.py`, `docs/onboarding.md`; the time is measured by the command and by `load/onboarding.js` |
+| A customer is onboarded in under two minutes with every artefact the plan sells | `ops/onboard.py`, `tests/test_operations.py`, `docs/onboarding.md`; measured on 2026-10-24 from a workstation at 9 to 14 s for Starter and 63 s for Business (`docs/benchmarks/2026-10-24-onboarding.md`); concurrent onboarding is `load/onboarding.js` |
 | The cost per tenant comes from two independent sources, reconciled | `ops/chargeback.py`, `tests/test_operations.py::test_chargeback_reconciles_both_sources_and_explains_the_gap`, `docs/cost.md` |
 | No plaintext credential is persisted anywhere | hashes in Cosmos, signing in Key Vault, sealed delivery to the console (`docs/security.md`) |
 
@@ -97,14 +97,19 @@ The infrastructure is deployed from a workstation; the workflows deploy the clus
 ```
 make lz-env                                            # imports the landing zone's outputs into the azd environment
 eval "$(azd env get-values | sed 's/^/export /')"
-make preview && make deploy                            # what-if, then the full template (about 40 minutes, the cluster)
+export ENTRA_TENANT_ID=$(az account show --query tenantId -o tsv)
+make preview && make deploy                            # what-if, then the template; twice on the first run (below)
 bash ../p04-graph-grants.sh                            # the Entra objects Bicep cannot hold, once; see docs/security.md
 make image                                             # az acr build into the shared registry
+make function                                          # the usage Function, remote build on Flex Consumption
 make deployment-env | tee -a .env                      # the outputs the manifests need, plus TAG
-bash k8s/render.sh && make apply-k8s && make rollout   # the platform and the starter namespace
+az aks get-credentials -g rg-aisaas-prod-swc -n aks-aisaas-prod-swc && kubelogin convert-kubeconfig -l azurecli
+bash k8s/render.sh && make apply-k8s && make rollout   # the ingress, the platform and the starter namespace
 ```
 
-`deploy.yml` does the last three steps from GitHub with its own identity (`workflow_dispatch`, OIDC,
+The first `make deploy` runs the template twice, because AKS creates its node resource group during the
+first pass and the cost readers on that group can only be granted on the second; on 2026-10-24 the two
+passes took about twelve minutes. `deploy.yml` does the image, the Function and the last two steps from GitHub with its own identity (`workflow_dispatch`, OIDC,
 docker build and push, render, apply, rollout status, rollback on failure); `load.yml` runs the k6
 scenarios and returns the results as an artifact; `chargeback.yml` produces the monthly report; `ci.yml`
 runs ruff, mypy, pytest, the budget, Bicep build and lint, the console build, kubeconform on every
@@ -196,14 +201,19 @@ and the test that mitigates it.
   the 170 lines the specification's module table gives them; 900 of support Python (`tests/`, `load/`),
   raised once from 600 in phase 7 because the three thesis tests carry their own doubles; 600 lines of
   Bicep, raised once from 500 in phase 3; 500 of YAML under `k8s/`; 700 of TypeScript; fewer than 25
-  comment lines. The counts at the end of the build: 87 files, 1,692 and 898 lines of Python, 574 of
-  Bicep, 445 of YAML, 215 of TypeScript, 0 comments.
+  comment lines. The counts after the close-out of 2026-10-24: 89 files, 1,700 and 900 lines of Python,
+  586 of Bicep, 462 of YAML, 215 of TypeScript, 0 comments.
 - **One region, Free control-plane tier, one system node at rest.** The estate runs intermittently and
   is sized for that; `docs/operations/slo.md` states the production posture for the Enterprise objective.
 - **The per-tenant index is sent but not yet honoured.** The RAG platform answers from its configured
   index until a small change in its repository accepts the `index` field, the author's pull request.
 - **Managed NGINX is not used.** The application routing add-on's NGINX loses support after
   November 2026, so the cluster uses the add-on's Gateway API implementation.
+- **The managed Gateway proxy has a namespace of its own**, `ingress`, which enforces Pod Security
+  `baseline` and warns and audits `restricted`: AKS's proxy sets no seccomp profile and its
+  allow-listed customisations cannot add one. Every pod this repository deploys meets `restricted`,
+  which the platform and tenant namespaces enforce.
+- **HTTP on the public IP.** The estate owns no domain, so the listener has no certificate (ADR-011).
 - **No Front Door, no private networking, no agent**, each a recorded decision (ADR-011, ADR-013, ADR-012).
 - **The load tests run against a stub**, and no result is published until the cluster has run under load.
 - **Starter customers authenticate with a platform credential**, Business and Enterprise customers with

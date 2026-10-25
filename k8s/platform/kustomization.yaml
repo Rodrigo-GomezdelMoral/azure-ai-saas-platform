@@ -3,7 +3,6 @@ kind: Kustomization
 namespace: platform
 resources:
   - namespace.yaml
-  - gateway.yaml
   - meter-drain.yaml
   - onboarding.yaml
   - keda-scaledobject.yaml

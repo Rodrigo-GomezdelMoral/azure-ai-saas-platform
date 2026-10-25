@@ -10,7 +10,7 @@ number here.
 
 | Source | What it measures | Where it comes from | Granularity |
 |---|---|---|---|
-| Application metering | the inference each answer cost, as the RAG platform reports it in the final `verify` event (`cost_eur`), in euro cents, plus whether the answer was cached or redacted | `app/metering.py` → Service Bus → the Function → one `BillingPeriod` document per tenant and month | per request, attributed to a tenant by the token |
+| Application metering | the inference each answer cost, as the RAG platform reports it in the final `verify` event (`cost_eur`), in euro cents with their fractions, plus whether the answer was cached or redacted | `app/metering.py` → Service Bus → the Function → one `BillingPeriod` document per tenant and month | per request, attributed to a tenant by the token |
 | Azure Cost Management | what Azure billed to the platform's resource group and its node group, by service, with the `tenant` tag where a resource carries one | `ops/chargeback.py` querying the Cost Management API by tag | per service and tag value, daily |
 
 The gateway's metering does not see the cluster, the cache, the data plane or the messaging; Cost

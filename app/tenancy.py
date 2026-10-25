@@ -1,4 +1,5 @@
 import hashlib
+import time
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -68,7 +69,10 @@ class CosmosTenantStore:
         return record.get("revoked") is not None
 
     async def signing_keys(self) -> list[dict[str, Any]]:
-        document = await self.credentials.read_item(item=JWKS_DOCUMENT, partition_key=JWKS_PARTITION)
+        try:
+            document = await self.credentials.read_item(item=JWKS_DOCUMENT, partition_key=JWKS_PARTITION)
+        except CosmosResourceNotFoundError:
+            return []
         return list(document["keys"])
 
 
@@ -81,8 +85,7 @@ class TenantResolver:
 
     def __init__(self, settings: Settings, store: TenantStore, entra_keys: KeySource) -> None:
         self.settings, self.store, self.entra_keys = settings, store, entra_keys
-        self._issuer = f"{LOGIN}/{settings.entra_tenant_id}/v2.0"
-        self._keys: dict[str, Any] = {}
+        self._issuer, self._keys, self._refreshed = f"{LOGIN}/{settings.entra_tenant_id}/v2.0", dict[str, Any](), 0.0
 
     async def resolve(self, authorization: str | None) -> Principal:
         scheme, _, token = (authorization or "").partition(" ")
@@ -106,6 +109,8 @@ class TenantResolver:
 
     async def _from_credential(self, token: str) -> Principal:
         kid = str(jwt.get_unverified_header(token).get("kid", ""))
+        if kid not in self._keys and time.monotonic() - self._refreshed > 60:
+            await self.refresh_keys()
         claims = self._verify(token, lambda: self._credential_key(kid), CREDENTIAL_ISSUER)
         tenant_id, digest = str(claims.get("sub", "")), digest_of(token)
         if await self.store.credential_revoked(tenant_id, digest) is not False:
@@ -116,7 +121,7 @@ class TenantResolver:
         try:
             if not self.settings.require_auth:
                 return jwt.decode(token, options={"verify_signature": False})
-            return jwt.decode(token, key(), algorithms=["RS256"], audience=self.settings.api_audience, issuer=issuer)
+            return jwt.decode(token, key(), ["RS256"], audience=self.settings.api_audience, issuer=issuer, leeway=300)
         except jwt.PyJWTError as error:
             raise AccessError(401, f"invalid token: {error}") from error
 
@@ -126,6 +131,7 @@ class TenantResolver:
         return self._keys[kid]
 
     async def refresh_keys(self) -> None:
+        self._refreshed = time.monotonic()
         self._keys = {str(jwk["kid"]): jwt.PyJWK.from_dict(jwk).key for jwk in await self.store.signing_keys()}
 
     async def _tenant(self, tenant_id: str) -> Tenant:

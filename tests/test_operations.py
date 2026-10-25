@@ -69,6 +69,8 @@ def services(settings: Settings, keys: Keys, redis: Any, tmp_path: Path) -> Serv
 async def test_business_onboarding_creates_every_artefact_and_a_credential_that_resolves(
     services: Services, keys: Keys, tmp_path: Path
 ) -> None:
+    store = CosmosTenantStore(services.tenants, services.credentials)
+    assert await store.signing_keys() == []
     tenant, issued = await Onboarding(services).run(Order(name="Globex", plan=Plan.BUSINESS), log=lambda _: None)
     document = services.tenants.items[("globex", "globex")]  # type: ignore[attr-defined]
     assert len(document["steps"]) == 8 and tenant.client_id == "client-1" and document["status"] == "ready"
@@ -80,9 +82,8 @@ async def test_business_onboarding_creates_every_artefact_and_a_credential_that_
     assert "TENANT_SCOPE=globex" in (tmp_path / "t-globex" / "settings.env").read_text(encoding="utf-8")
     assert services.indexes.create_index.await_args.args[0].name == "t-globex"  # type: ignore[attr-defined]
     assert services.indexers.run_indexer.await_args.args == ("t-globex-indexer",)  # type: ignore[attr-defined]
-    assert await services.redis.hget("quota:globex:bucket", "tokens") == "500"
-    resolver = TenantResolver(services.settings, CosmosTenantStore(services.tenants, services.credentials), keys)
-    await resolver.refresh_keys()
+    assert await services.redis.hget("quota:{globex}:bucket", "tokens") == "500"
+    resolver = TenantResolver(services.settings, store, keys)
     assert (await resolver.resolve(f"Bearer {issued}")).tenant.id == "globex"  # type: ignore[union-attr]
     stored = json.dumps([*services.tenants.items.values(), *services.credentials.items.values()])  # type: ignore[attr-defined]
     assert issued not in stored and digest_of(issued) in stored

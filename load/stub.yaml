@@ -23,7 +23,7 @@ data:
         location /healthz { return 200 "ok\n"; }
         location /v1/answer {
           default_type text/event-stream;
-          return 200 "event: plan\ndata: {\"phase\": \"plan\"}\n\nevent: verify\ndata: {\"trace_id\": \"stub\", \"claims\": [{\"text\": \"Article 10 requires data governance.\", \"chunk_ids\": [\"c1\"], \"citation_label\": \"AI Act art. 10\"}], \"citations\": [], \"refusal\": null, \"cost_eur\": 0.01}\n\n";
+          return 200 "event: plan\ndata: {\"phase\": \"plan\"}\n\nevent: verify\ndata: {\"phase\": \"verify\", \"trace_id\": \"stub\", \"elapsed_ms\": 1, \"data\": {\"trace_id\": \"stub\", \"claims\": [{\"text\": \"Article 10 requires data governance.\", \"chunk_ids\": [\"c1\"], \"citation_label\": \"AI Act art. 10\"}], \"citations\": [], \"refusal\": null, \"cost_eur\": 0.01}}\n\n";
         }
       }
     }

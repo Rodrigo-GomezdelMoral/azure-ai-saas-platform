@@ -110,7 +110,7 @@ class UsageEvent(BaseModel):
     trace_id: str
     database: str
     container: str
-    cents: int = Field(ge=0)
+    cents: float = Field(ge=0)
     cached: bool = False
     redacted: bool = False
     upstream_ms: int = Field(default=0, ge=0)
@@ -129,5 +129,5 @@ class BillingPeriod(BaseModel):
     requests: int = 0
     cached: int = 0
     rejected: int = 0
-    cents: int = 0
+    cents: float = 0
     upstream_ms: int = 0

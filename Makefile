@@ -1,6 +1,7 @@
 PYTHON ?= python
 RESOURCE_GROUP ?= rg-aisaas-prod-swc
 CLUSTER ?= aks-aisaas-prod-swc
+FUNCTION_APP ?= func-aisaas-prod-swc
 LZ_OUTPUTS ?= ../lz-outputs.txt
 OVERLAYS := starter business enterprise
 K8S_VERSION ?= 1.36.0
@@ -8,14 +9,14 @@ CRD_SCHEMAS := https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.G
 
 KUBECTL ?= kubectl
 KUBECONFORM ?= kubeconform
-KUSTOMIZATIONS := k8s/overlays/starter k8s/overlays/business k8s/overlays/enterprise k8s/platform
+KUSTOMIZATIONS := k8s/overlays/starter k8s/overlays/business k8s/overlays/enterprise k8s/platform k8s/ingress
 REGISTRY ?= $(REGISTRY_NAME)
 TAG ?= $(shell git rev-parse --short HEAD)
 PLAN ?= starter
 PII ?= none
 MONTH ?= $(shell date -d "$$(date +%Y-%m-01) -1 day" +%Y-%m)
 
-.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start kube-validate console image onboard chargeback deployment-env apply-k8s rollout rollback
+.PHONY: install lint type test budget check lz-env validate-infra preview deploy destroy stop start kube-validate console image function onboard chargeback deployment-env apply-k8s rollout rollback
 ROLLOUTS := platform/meter-drain tenants-starter/gateway
 
 install:
@@ -45,10 +46,13 @@ validate-infra:
 	az bicep build --file infra/main.bicep --stdout --only-show-errors > /dev/null && az bicep lint --file infra/main.bicep --only-show-errors
 
 preview:
+	NODE_GROUP_EXISTS=$$(az group exists -n $(RESOURCE_GROUP)-nodes) \
 	az deployment group what-if -g $(RESOURCE_GROUP) -f infra/main.bicep -p infra/main.bicepparam --only-show-errors
 
 deploy:
-	az deployment group create -g $(RESOURCE_GROUP) -f infra/main.bicep -p infra/main.bicepparam --only-show-errors
+	@for pass in 1 2; do exists=$$(az group exists -n $(RESOURCE_GROUP)-nodes); \
+	  NODE_GROUP_EXISTS=$$exists az deployment group create -g $(RESOURCE_GROUP) -f infra/main.bicep -p infra/main.bicepparam \
+	    --only-show-errors -o none || exit 1; [ "$$exists" = true ] && break; done
 
 destroy:
 	azd down --force --purge
@@ -65,6 +69,10 @@ console:
 image:
 	PYTHONIOENCODING=utf-8 az acr build --registry $(REGISTRY) --image gateway:$(TAG) --file Dockerfile .
 
+function:
+	cd functions && $(PYTHON) -m zipfile -c ../function.zip function_app.py aggregate.py host.json requirements.txt
+	az functionapp deployment source config-zip -g $(RESOURCE_GROUP) -n $(FUNCTION_APP) --src function.zip --build-remote true -o none
+
 onboard:
 	$(PYTHON) -m ops.onboard --name "$(NAME)" --plan $(PLAN) --pii $(PII)
 
@@ -75,6 +83,7 @@ deployment-env:
 	@az deployment group show -g $(RESOURCE_GROUP) -n main --query properties.outputs -o json | $(PYTHON) -c "import json, re, sys; [print(re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', k).upper() + '=' + str(v['value'])) for k, v in json.load(sys.stdin).items()]"
 
 apply-k8s:
+	$(KUBECTL) apply -k k8s/ingress
 	@for name in platform starter; do $(KUBECTL) kustomize --load-restrictor LoadRestrictionsNone k8s/.generated/$$name | $(KUBECTL) apply -f - || exit 1; done
 
 rollout:

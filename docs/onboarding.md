@@ -17,6 +17,9 @@ and behind the console; both paths end with the customer's first credential and 
 | `credential` | Key-Vault-signed credential, hash in Cosmos, public key in the JWKS document | same | same |
 | `notify` | `saas.tenant.onboarded` on the platform's Event Grid topic | same | same |
 
+Measured on 2026-10-24 from a workstation: 9 to 14 s for a Starter tenant and 63 s for a Business
+tenant (`docs/benchmarks/2026-10-24-onboarding.md`).
+
 Every step is idempotent: a redelivered order or a second run with the same name converges on the same
 tenant. A failed step marks the tenant `failed` with the reason; fix the cause and run again.
 
@@ -32,7 +35,9 @@ The credential is a JWT signed by the vault's key; the platform keeps its SHA-25
 
 ## From the console
 
-`/console` is served by the gateway. The operator signs in with Entra (the `Platform.Admin` app role on
+`/console` is served by the starter gateway pod and reached through a port-forward, never through the public
+listener: `kubectl -n tenants-starter port-forward deployment/gateway 8000:8000`, then
+`http://localhost:8000/console/`, the one redirect URI the gateway's registration accepts. The operator signs in with Entra (the `Platform.Admin` app role on
 the gateway's registration), submits the company name, the plan and the PII policy, and watches the
 eight steps complete. Before submitting, the browser generates an RSA key pair; the worker seals the
 credential to that public key (AES-GCM for the credential, RSA-OAEP for the AES key) and the status route

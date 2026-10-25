@@ -50,6 +50,9 @@ jobs:
           docker build --quiet --tag "$REGISTRY_LOGIN_SERVER/gateway:$TAG" .
           docker push --quiet "$REGISTRY_LOGIN_SERVER/gateway:$TAG"
 
+      - name: Package the usage Function and deploy it with a remote build
+        run: make function
+
       - uses: azure/setup-kubectl@v5
         with:
           version: v1.36.5

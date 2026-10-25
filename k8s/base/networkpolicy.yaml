@@ -15,7 +15,7 @@ spec:
     matchLabels: { app: gateway }
   policyTypes: [Ingress]
   ingress:
-    - from: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: platform } } }]
+    - from: [{ namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress } } }]
       ports: [{ port: 8000, protocol: TCP }]
 ---
 apiVersion: networking.k8s.io/v1

@@ -16,8 +16,7 @@ MONTH = datetime(2026, 11, 1, tzinfo=UTC)
 
 def event(tenant_id: str, cents: int, day: int = 0, cached: bool = False) -> UsageEvent:
     occurred = MONTH + timedelta(days=day, seconds=random.randrange(86_400))
-    container = "usage" if tenant_id == "acme" else f"usage-{tenant_id}"
-    trace_id = f"t-{random.randrange(1 << 48):x}"
+    container, trace_id = "usage" if tenant_id == "acme" else f"usage-{tenant_id}", f"t-{random.randrange(1 << 48):x}"
     fields = {"tenant_id": tenant_id, "trace_id": trace_id, "database": "saas", "container": container}
     return UsageEvent(cents=cents, cached=cached, upstream_ms=1200, occurred=occurred, **fields)
 
@@ -82,7 +81,7 @@ async def test_entries_a_dead_consumer_left_pending_are_reclaimed(redis: Any) ->
 async def test_metering_accuracy_over_a_simulated_month(redis: Any) -> None:
     """Recorded equals consumed exactly; one redelivered batch overcounts by at most that batch, under 2 percent."""
     random.seed(7)
-    meter, collector, consumed = Meter(redis, "usage"), Collector(), dict[str, int]()
+    meter, collector, consumed = Meter(redis, "usage"), Collector(), dict[str, float]()
     for day in range(30):
         for tenant_id, calls in (("acme", 20), ("globex", 90), ("initech", 300)):
             for _ in range(random.randrange(calls // 2, calls)):
@@ -102,7 +101,7 @@ async def test_metering_accuracy_over_a_simulated_month(redis: Any) -> None:
     for (_, _, tenant_id, month), delta in aggregate(redelivered).items():
         apply(container, tenant_id, month, delta)
     overcount = sum(document["cents"] for document in container.documents.values()) - sum(consumed.values())
-    assert 0 < overcount <= sum(int(fields["cents"]) for fields in redelivered)
+    assert 0 < overcount <= sum(float(fields["cents"]) for fields in redelivered)
     assert overcount / sum(consumed.values()) < 0.02
 
 

@@ -53,15 +53,26 @@ jobs:
           kubelogin convert-kubeconfig -l azurecli
           kubectl apply -f load/stub.yaml
           kubectl -n platform rollout status deployment/upstream-stub --timeout=120s
-          address=$(kubectl -n platform get gateway saas -o jsonpath='{.status.addresses[0].value}')
+          for ns in tenants-starter "t-${PROTECTED_PREFIX#/t/}"; do
+            kubectl -n "$ns" set env deployment/gateway UPSTREAM_URL=http://upstream-stub.platform.svc.cluster.local:8080
+            kubectl -n "$ns" rollout status deployment/gateway --timeout=180s
+          done
+          address=$(kubectl -n ingress get gateway saas -o jsonpath='{.status.addresses[0].value}')
           echo "GATEWAY_URL=http://$address" >> "$GITHUB_ENV"
           echo "TENANT_TOKEN=$PROTECTED_TOKEN" >> "$GITHUB_ENV"
           echo "ROUTE_PREFIX=$PROTECTED_PREFIX" >> "$GITHUB_ENV"
           mkdir -p "$RESULTS_DIR"
 
-      - name: Baseline
+      - name: Baseline, with the protected tenant's quota off so that the gateway's ceiling is measured
         if: inputs.scenario == 'all' || inputs.scenario == 'baseline'
-        run: k6 run load/baseline.js
+        run: |
+          ns="t-${PROTECTED_PREFIX#/t/}"
+          kubectl -n "$ns" set env deployment/gateway ENFORCE_QUOTA=false
+          kubectl -n "$ns" rollout status deployment/gateway --timeout=180s
+          k6 run load/baseline.js || status=$?
+          kubectl -n "$ns" set env deployment/gateway ENFORCE_QUOTA-
+          kubectl -n "$ns" rollout status deployment/gateway --timeout=180s
+          exit "${status:-0}"
 
       - name: Noisy neighbour with quota enforcement on
         if: inputs.scenario == 'all' || inputs.scenario == 'noisy-neighbour'
@@ -86,6 +97,13 @@ jobs:
           ADMIN_TOKEN=$(az account get-access-token --scope "api://$API_AUDIENCE/.default" --query accessToken -o tsv)
           export ADMIN_TOKEN RUN_ID="${GITHUB_RUN_NUMBER}"
           k6 run load/onboarding.js
+
+      - name: Point the load tenants back at the RAG platform
+        if: always()
+        run: |
+          for ns in tenants-starter "t-${PROTECTED_PREFIX#/t/}"; do
+            kubectl -n "$ns" set env deployment/gateway UPSTREAM_URL- ENFORCE_QUOTA-
+          done
 
       - name: Summarise the results
         if: always()

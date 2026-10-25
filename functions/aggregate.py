@@ -8,7 +8,7 @@ import os
 from collections import defaultdict
 from datetime import UTC, datetime
 from functools import cache
-from typing import Any, Protocol
+from typing import Any, List, Protocol  # noqa: UP035
 
 import azure.functions as func
 from azure.cosmos import CosmosClient
@@ -25,20 +25,20 @@ class PeriodStore(Protocol):
     def create_item(self, body: dict[str, Any]) -> Any: ...
 
 
-def aggregate(events: list[dict[str, Any]]) -> dict[Store, dict[str, int]]:
+def aggregate(events: list[dict[str, Any]]) -> dict[Store, dict[str, float]]:
     """Per billing store (database, container), tenant and month: the increments a batch of events adds."""
-    totals: dict[Store, dict[str, int]] = defaultdict(lambda: dict.fromkeys(COUNTERS, 0))
+    totals: dict[Store, dict[str, float]] = defaultdict(lambda: dict.fromkeys(COUNTERS, 0))
     for event in events:
         where = (str(event["database"]), str(event["container"]), str(event["tenant_id"]))
         delta = totals[(*where, str(event["occurred"])[:7])]
         delta["requests"] += 1
         delta["cached"] += int(event.get("cached", 0))
-        delta["cents"] += int(event["cents"])
+        delta["cents"] += float(event["cents"])
         delta["upstream_ms"] += int(event.get("upstream_ms", 0))
     return totals
 
 
-def apply(container: PeriodStore, tenant_id: str, month: str, delta: dict[str, int]) -> None:
+def apply(container: PeriodStore, tenant_id: str, month: str, delta: dict[str, float]) -> None:
     """Atomic increments on the period document; a month's first batch creates it, or loses the race and patches."""
     stamp = datetime.now(UTC).isoformat()
     operations: list[dict[str, Any]] = [{"op": "incr", "path": f"/{name}", "value": v} for name, v in delta.items()]
@@ -61,7 +61,8 @@ def cosmos() -> CosmosClient:
 @bp.service_bus_queue_trigger(
     arg_name="messages", queue_name="%USAGE_QUEUE%", connection="ServiceBusConnection", cardinality="many"
 )
-def usage(messages: list[func.ServiceBusMessage]) -> None:
+def usage(messages: List[func.ServiceBusMessage]) -> None:  # noqa: UP006
+    """The Python worker indexes a batch binding only when it is annotated with typing.List."""
     events = [json.loads(message.get_body()) for message in messages]
     for (database, container, tenant_id, month), delta in aggregate(events).items():
         apply(cosmos().get_database_client(database).get_container_client(container), tenant_id, month, delta)

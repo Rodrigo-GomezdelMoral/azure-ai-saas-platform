@@ -4,8 +4,9 @@ Three k6 scenarios under `load/`, run by `load.yml` from a GitHub-hosted runner 
 gateway, never against the RAG platform. This file records the method; each published run is a dated
 file next to it, with the configuration and the SKUs it ran on, and the README links the latest.
 
-**No result is published yet.** The scripts exist and are reviewed; the cluster has not run under load
-because the compute quota request is pending. A load test without a committed result is a script, not
+**No load result is published yet.** The cluster was first deployed on 2026-10-24; the onboarding times
+measured that day are in `2026-10-24-onboarding.md`, and the three k6 scenarios have not run. A load
+test without a committed result is a script, not
 evidence, and this document does not claim numbers it does not have.
 
 ## What is measured, and what is not
@@ -28,8 +29,8 @@ evidence, and this document does not claim numbers it does not have.
 
 | Script | What it does | Objective | Result file |
 |---|---|---|---|
-| `load/baseline.js` | ramps the arrival rate from 5 to 200 requests a second over four minutes on one Business tenant | p95 of successful requests under 500 ms, failures under 1 %; the rate at which either breaks is the gateway's measured ceiling | `baseline.json` |
-| `load/noisy-neighbour.js` | a Starter tenant floods the shared gateway at 100 requests a second while a Business tenant runs 5 a second in its own namespace, for three minutes; run twice, with quota enforcement on and off on the Starter gateway | the protected tenant's p95 with and without enforcement, side by side | `noisy-neighbour-on.json`, `noisy-neighbour-off.json` |
+| `load/baseline.js` | ramps the arrival rate from 5 to 200 requests a second over four minutes on one Business tenant, whose quota enforcement is off for the run because the result is the gateway's ceiling, not the plan's | p95 of successful requests under 500 ms, failures under 1 %; the rate at which either breaks is the gateway's measured ceiling | `baseline.json` |
+| `load/noisy-neighbour.js` | a Starter tenant floods the shared gateway at 100 requests a second while a Business tenant runs 1 a second in its own namespace, inside its plan's 120 a minute and its 500-cent burst, for three minutes; run twice, with quota enforcement on and off on the Starter gateway | the protected tenant's p95 with and without enforcement, side by side | `noisy-neighbour-on.json`, `noisy-neighbour-off.json` |
 | `load/onboarding.js` | ten tenants onboarded at once through the admin API, each virtual user polling until its tenant is ready | time to ready, p95 under two minutes | `onboarding.json` |
 
 The noisy-neighbour comparison is the proof the repository is built around: with enforcement on, the
@@ -52,7 +53,8 @@ and the node, and the protected tenant pays for it. The published chart shows bo
 
 - Date, commit, the k6 version and the runner (GitHub-hosted `ubuntu-latest`, so the network path is
   from a Microsoft data centre to Sweden Central).
-- Cluster: one `Standard_D4as_v5` system node, spot `Standard_D2as_v5` 0–2, Enterprise pool 0–1;
+- Cluster: one `Standard_D4as_v5` system node, spot `Standard_D2as_v5` 0–2 (the subscription's regional
+  spot quota of 3 vCPUs admits one spot node, so record how many ran), Enterprise pool 0–1;
   Kubernetes 1.36; Gateway API implementation `approuting-istio` with two proxy replicas.
 - Managed Redis `Balanced_B0`; Cosmos DB serverless; the embedding deployment and its tokens-per-minute
   limit on the shared Foundry account.
