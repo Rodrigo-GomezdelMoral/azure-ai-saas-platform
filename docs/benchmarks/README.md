@@ -4,10 +4,10 @@ Three k6 scenarios under `load/`, run by `load.yml` from a GitHub-hosted runner 
 gateway, never against the RAG platform. This file records the method; each published run is a dated
 file next to it, with the configuration and the SKUs it ran on, and the README links the latest.
 
-**No load result is published yet.** The cluster was first deployed on 2026-10-24; the onboarding times
-measured that day are in `2026-10-24-onboarding.md`, and the three k6 scenarios have not run. A load
-test without a committed result is a script, not
-evidence, and this document does not claim numbers it does not have.
+**Published runs.** `2026-10-24-onboarding.md` has the first onboarding times, measured from a
+workstation the day the cluster was first deployed. `2026-10-25-load.md` has the three scenarios: the
+baseline's p95 at each rate, the noisy-neighbour pair with its chart, and ten concurrent onboardings
+through the admin API.
 
 ## What is measured, and what is not
 

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import Any
 
@@ -63,6 +64,7 @@ class Sender:
 
     async def send_messages(self, message: Any) -> None:
         self.sent.append(json.loads(b"".join(message.body).decode()))
+        assert await asyncio.sleep(0.01, self.sent[-1]) is self.sent[-1], "sends overlapped on one Service Bus sender"
 
 
 class Ticker:
@@ -76,14 +78,13 @@ class Ticker:
 class World:
     def __init__(self, settings: Settings, store: MemoryStore, keys: Keys, redis: Any) -> None:
         self.upstream, self.pii, self.sender, self.clock = Upstream(), FakePii(), Sender(), Ticker()
-        self.keys, self.store, self.redis = keys, store, redis
+        self.keys, self.store, self.redis, meter = keys, store, redis, Meter(redis, "usage")
         http = httpx.AsyncClient(transport=httpx.MockTransport(self.upstream.handler))
         self.resolver = TenantResolver(settings, store, keys)
         cache = SemanticCache(MemoryVectorStore(), fake_embedder(), settings.cache_similarity)
         upstream = UpstreamClient(http, settings, FakeCredential())  # type: ignore[arg-type]
         upstream.breaker.failures, upstream.breaker.clock = 3, self.clock
         privacy = Privacy(Redactor(self.pii, settings.pii_document_characters, settings.pii_documents_per_request))
-        meter = Meter(redis, "usage")
         self.gateway = Gateway(
             settings, self.resolver, QuotaGate(redis), cache, privacy, upstream, meter, None, self.sender
         )
@@ -173,12 +174,13 @@ async def test_circuit_breaker_opens_after_failures_and_probes_after_the_reset(w
     assert (await world.ask("acme")).status_code == 200 and len(world.upstream.requests) == 4
 
 
-async def test_admin_role_queues_onboarding_and_tenants_cannot(world: World) -> None:
+async def test_admin_role_queues_a_burst_of_onboardings_and_tenants_cannot(world: World) -> None:
     order = {"name": "Acme Robotics", "plan": "business", "pii": "before_storage"}
     refused = await world.client.post("/admin/tenants", json=order, headers=world.headers("tenant:acme"))
-    assert refused.status_code == 403
-    queued = await world.client.post("/admin/tenants", json=order, headers=world.headers("Platform.Admin"))
-    assert queued.status_code == 202 and queued.json() == {"tenant": "acme-robotics", "status": "queued"}
+    burst = [world.client.post("/admin/tenants", json=order, headers=world.headers("Platform.Admin")) for _ in range(9)]
+    queued = await asyncio.gather(*burst)
+    assert refused.status_code == 403 and {r.status_code for r in queued} == {202} and len(world.sender.sent) == 9
+    assert queued[0].json() == {"tenant": "acme-robotics", "status": "queued"}
     assert world.sender.sent[0]["plan"] == "business" and world.sender.sent[0]["tenant_id"] == "acme-robotics"
 
 

@@ -1,6 +1,7 @@
 // One Starter tenant floods the gateway while a Business tenant runs a steady load. The protected tenant's p95 is the
-// result. Run it twice: ENFORCE=on (the default deployment) and ENFORCE=off (the starter gateway deployed with
-// ENFORCE_QUOTA=false), and publish both numbers side by side; that comparison is the proof that isolation works.
+// result, read from the `protected` scenario's tag. Run it twice: ENFORCE=on (the default deployment) and ENFORCE=off
+// (the starter gateway deployed with ENFORCE_QUOTA=false), and publish both numbers side by side; that comparison is
+// the proof that isolation works.
 import http from "k6/http";
 import { check } from "k6";
 
@@ -12,7 +13,7 @@ const protectedTenant = { token: __ENV.PROTECTED_TOKEN, prefix: __ENV.PROTECTED_
 
 export const options = {
   scenarios: {
-    flood: {
+    noisy: {
       executor: "constant-arrival-rate",
       rate: 100,
       timeUnit: "1s",
@@ -20,9 +21,8 @@ export const options = {
       preAllocatedVUs: 100,
       maxVUs: 600,
       exec: "flood",
-      tags: { scenario: "noisy" },
     },
-    steady: {
+    protected: {
       executor: "constant-arrival-rate",
       rate: 1,
       timeUnit: "1s",
@@ -30,7 +30,6 @@ export const options = {
       preAllocatedVUs: 10,
       maxVUs: 50,
       exec: "steady",
-      tags: { scenario: "protected" },
     },
   },
   thresholds: {

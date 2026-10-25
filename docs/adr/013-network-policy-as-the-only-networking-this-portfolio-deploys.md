@@ -29,9 +29,10 @@ Option 3. Every tenant namespace carries (`k8s/base/networkpolicy.yaml`):
   for every pod in the namespace;
 - `allow-ingress-from-platform-gateway`: port 8000 from the `ingress` namespace only, where the platform's
   Gateway proxies run;
-- `allow-egress-to-azure`: DNS in `kube-system`, TCP 443 and 10000 to public addresses with the private
-  ranges excluded (Entra, Cosmos, Service Bus, Event Grid, Foundry, Search, Key Vault, the RAG platform
-  and Managed Redis), and port 8080 to the load-test stub in `platform`.
+- `allow-egress-to-azure`: DNS in `kube-system`, TCP 443, 10000 and 5671 (AMQP, which the admin route
+  uses to queue an onboarding order) to public addresses with the private ranges excluded (Entra, Cosmos,
+  Service Bus, Event Grid, Foundry, Search, Key Vault, the RAG platform and Managed Redis), and port 8080
+  to the load-test stub in `platform`.
 
 The platform namespace mirrors it for the workers (`k8s/platform/networkpolicy.yaml`). Cross-namespace
 traffic between tenants is therefore denied rather than unconfigured, which is the shape the audit asks

@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="560" viewBox="0 0 960 560" font-family="Inter, &#x27;Segoe UI&#x27;, Helvetica, Arial, sans-serif">
+<rect width="960" height="560" fill="#FFFFFF"/>
+<text x="72" y="44" font-size="20" font-weight="600" fill="#1F2937">Noisy neighbour · protected tenant latency with and without quota enforcement</text>
+<text x="72" y="68" font-size="13" fill="#6B7280">Workstation run of 2026-10-25 · D4as_v5 + spot D2as_v5 · Redis Balanced_B0 · upstream stub · k6 1.8.2</text>
+<text x="72" y="104" font-size="16" font-weight="600" fill="#1F2937">Protected tenant p95: 524 ms with enforcement · 596 ms without · 1.1× slower</text>
+<line x1="72" y1="470.0" x2="920" y2="470.0" stroke="#D1D5DB" stroke-width="1"/>
+<text x="62" y="474.0" font-size="12" text-anchor="end" fill="#4B5563">0</text>
+<line x1="72" y1="406.0" x2="920" y2="406.0" stroke="#D1D5DB" stroke-width="1"/>
+<text x="62" y="410.0" font-size="12" text-anchor="end" fill="#4B5563">200</text>
+<line x1="72" y1="342.0" x2="920" y2="342.0" stroke="#D1D5DB" stroke-width="1"/>
+<text x="62" y="346.0" font-size="12" text-anchor="end" fill="#4B5563">400</text>
+<line x1="72" y1="278.0" x2="920" y2="278.0" stroke="#D1D5DB" stroke-width="1"/>
+<text x="62" y="282.0" font-size="12" text-anchor="end" fill="#4B5563">600</text>
+<line x1="72" y1="214.0" x2="920" y2="214.0" stroke="#D1D5DB" stroke-width="1"/>
+<text x="62" y="218.0" font-size="12" text-anchor="end" fill="#4B5563">800</text>
+<line x1="72" y1="150.0" x2="920" y2="150.0" stroke="#D1D5DB" stroke-width="1"/>
+<text x="62" y="154.0" font-size="12" text-anchor="end" fill="#4B5563">1K</text>
+<text x="20" y="310.0" font-size="12" fill="#6B7280" text-anchor="middle" transform="rotate(-90 20 310.0)">latency, ms</text>
+<text x="213.3" y="494" font-size="13" text-anchor="middle" fill="#4B5563">p50</text>
+<path d="M188.33333333333334,470 V367.485952 Q188.33333333333334,363.485952 192.33333333333334,363.485952 H208.33333333333334 Q212.33333333333334,363.485952 212.33333333333334,367.485952 V470 Z" fill="#2563EB"/>
+<path d="M214.33333333333334,470 V361.97520000000003 Q214.33333333333334,357.97520000000003 218.33333333333334,357.97520000000003 H234.33333333333334 Q238.33333333333334,357.97520000000003 238.33333333333334,361.97520000000003 V470 Z" fill="#B45309"/>
+<text x="496.0" y="494" font-size="13" text-anchor="middle" fill="#4B5563">p95</text>
+<path d="M471.0,470 V306.268192 Q471.0,302.268192 475.0,302.268192 H491.0 Q495.0,302.268192 495.0,306.268192 V470 Z" fill="#2563EB"/>
+<text x="483.0" y="294.3" font-size="12" font-weight="600" text-anchor="middle" fill="#1F2937">524</text>
+<path d="M497.0,470 V283.14140799999996 Q497.0,279.14140799999996 501.0,279.14140799999996 H517.0 Q521.0,279.14140799999996 521.0,283.14140799999996 V470 Z" fill="#B45309"/>
+<text x="509.0" y="271.1" font-size="12" font-weight="600" text-anchor="middle" fill="#1F2937">596</text>
+<text x="778.7" y="494" font-size="13" text-anchor="middle" fill="#4B5563">p99</text>
+<path d="M753.6666666666667,470 V256.15865600000006 Q753.6666666666667,252.15865600000006 757.6666666666667,252.15865600000006 H773.6666666666667 Q777.6666666666667,252.15865600000006 777.6666666666667,256.15865600000006 V470 Z" fill="#2563EB"/>
+<path d="M779.6666666666667,470 V260.48165760000006 Q779.6666666666667,256.48165760000006 783.6666666666667,256.48165760000006 H799.6666666666667 Q803.6666666666667,256.48165760000006 803.6666666666667,260.48165760000006 V470 Z" fill="#B45309"/>
+<line x1="72" y1="470" x2="920" y2="470" stroke="#9CA3AF" stroke-width="1"/>
+<rect x="72" y="516" width="14" height="14" rx="3" fill="#2563EB"/>
+<text x="92" y="528" font-size="13" fill="#4B5563">Quota enforcement on</text>
+<rect x="268.0" y="516" width="14" height="14" rx="3" fill="#B45309"/>
+<text x="288.0" y="528" font-size="13" fill="#4B5563">Quota enforcement off</text>
+<text x="72" y="550" font-size="11" fill="#6B7280">Series: the Business tenant&#x27;s successful requests only (threshold sub-metric). The Starter flood is offered at 100 req/s in both runs.</text>
+</svg>
