@@ -27,14 +27,21 @@ Option 3, in **euro cents**, not tokens. The RAG platform's final event carries 
 token counts, and that platform is closed; cents are also the unit the margin thesis needs.
 
 `app/quotas.py` keeps three keys per tenant in Redis and one Lua script makes the decision
-atomically: a burst bucket (`quota:<id>:bucket`, capacity `burst_cents`, refilled at
-`monthly_cents` per month), a per-minute counter (`quota:<id>:rpm:<minute>`) and the month's
-measured spend (`quota:<id>:month:<YYYY-MM>`). On entry the gateway reserves the plan's
+atomically: a burst bucket (`quota:{<id>}:bucket`, capacity `burst_cents`, refilled at
+`monthly_cents` per month), a per-minute counter (`quota:{<id>}:rpm:<minute>`) and the month's
+measured spend (`quota:{<id>}:month:<YYYY-MM>`). On entry the gateway reserves the plan's
 `estimated_cents`; the script refuses with a reason — `monthly` when measured spend plus the
 reservation would pass the plan, `burst` when the bucket cannot cover it, `rate` when the minute is
 full — and a `retry_after`. On exit the gateway settles the reservation with the cost from the
 final event, which refunds the unused part of the estimate or charges the excess, and adds the
 measured cost to the month. A failed or cancelled request releases its reservation entirely.
+
+The braces are a Redis hash tag. Managed Redis runs clustered, a script may only touch keys that
+live in one slot, and the tag puts every key of a tenant in the same slot; without it the first live
+request failed with `CROSSSLOT`, which `fakeredis` in the unit tests cannot show. The measured cost
+is kept in fractions of a cent (`INCRBYFLOAT`): an answer from the platform costs between a quarter
+of a cent and a cent, so rounding to whole cents would have billed most answers at zero. The
+reservation, a plan constant, stays a whole number of cents.
 
 A refusal costs nothing: it is one Redis round trip and a 429 with `Retry-After` and a
 `problem+json` body that names the reason, so a customer can tell a rate limit from an exhausted

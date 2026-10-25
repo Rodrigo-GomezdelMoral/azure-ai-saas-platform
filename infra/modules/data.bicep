@@ -92,12 +92,18 @@ resource topic 'Microsoft.EventGrid/topics@2025-02-15' = {
   properties: { inputSchema: 'CloudEventSchemaV1_0', disableLocalAuth: true, publicNetworkAccess: 'Enabled', minimumTlsVersionAllowed: '1.2' }
 }
 
-resource topicAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for id in [gatewayPrincipalId, onboardPrincipalId]: {
-  name: guid(topic.id, id, eventSender), scope: topic
-  properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', eventSender), principalId: id, principalType: 'ServicePrincipal' }
+resource topicAccess 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for item in concat(operators, [{ id: gatewayPrincipalId, type: 'ServicePrincipal' }]): {
+  name: guid(topic.id, item.id, eventSender), scope: topic
+  properties: { roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', eventSender), principalId: item.id, principalType: item.type }
 }]
 
-resource redisDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = { name: 'to-workspace', scope: redis, properties: allLogs }
+resource redisDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'to-workspace', scope: redis, properties: { workspaceId: common.workspaceId, metrics: allMetrics }
+}
+
+resource redisDatabaseDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'to-workspace', scope: redisDatabase, properties: { workspaceId: common.workspaceId, logs: [{ category: 'ConnectionEvents', enabled: true }] }
+}
 
 resource cosmosDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: 'to-workspace', scope: cosmos

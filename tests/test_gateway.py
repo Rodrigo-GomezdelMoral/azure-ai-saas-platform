@@ -3,6 +3,7 @@ from typing import Any
 
 import httpx
 import pytest
+from azure.ai.textanalytics.aio import TextAnalyticsClient
 from azure.core.credentials import AccessToken
 
 from app.cache import SemanticCache
@@ -19,8 +20,9 @@ from tests.test_metering import MemoryVectorStore, fake_embedder
 
 CLAIM = {"text": "Article 10 requires data governance.", "chunk_ids": ["c1"], "citation_label": "AI Act art. 10"}
 COST_EUR = 0.0142
-FINAL: dict[str, Any] = {"trace_id": "t1", "claims": [CLAIM], "citations": [], "refusal": None, "cost_eur": COST_EUR}
-STREAM = f'event: plan\ndata: {{"phase": "plan"}}\n\nevent: verify\ndata: {json.dumps(FINAL)}\n\n'
+ANSWER: dict[str, Any] = {"trace_id": "t1", "claims": [CLAIM], "citations": [], "refusal": None, "cost_eur": COST_EUR}
+FINAL: dict[str, Any] = {"phase": "verify", "trace_id": "t1", "elapsed_ms": 9, "data": ANSWER}
+STREAM = f'event: plan\ndata: {{"phase": "plan", "data": {{}}}}\n\nevent: verify\ndata: {json.dumps(FINAL)}\n\n'
 
 
 class Upstream:
@@ -110,9 +112,9 @@ async def test_answer_streams_upstream_events_unchanged_and_meters_the_final_eve
     assert sent["index"] == "regulations" and sent["question"].startswith("What")
     _, fields = (await world.redis.xrange("usage"))[0]
     assert fields["tenant_id"] == "acme" and fields["cached"] == "0"
-    assert int(fields["cents"]) == round(COST_EUR * 100)
+    assert float(fields["cents"]) == COST_EUR * 100
     usage = await world.client.get("/v1/usage", headers=world.headers("tenant:acme"))
-    assert usage.json()["spent_cents"] == 1 and usage.json()["monthly_cents"] == 2_000
+    assert usage.json()["spent_cents"] == pytest.approx(COST_EUR * 100) and usage.json()["monthly_cents"] == 2_000
 
 
 async def test_tenant_at_its_ceiling_is_rejected_before_any_upstream_call(world: World) -> None:
@@ -133,7 +135,7 @@ async def test_second_identical_question_is_answered_from_the_cache(world: World
     assert json.loads(hit.text.split("data: ")[1]) == FINAL
     assert len(world.upstream.requests) == 1
     entries = await world.redis.xrange("usage")
-    assert [fields["cached"] for _, fields in entries] == ["0", "1"] and int(entries[1][1]["cents"]) == 0
+    assert [fields["cached"] for _, fields in entries] == ["0", "1"] and float(entries[1][1]["cents"]) == 0
 
 
 async def test_pii_policy_decides_what_leaves_and_what_is_kept(world: World) -> None:
@@ -151,6 +153,7 @@ async def test_pii_policy_decides_what_leaves_and_what_is_kept(world: World) -> 
 
 async def test_redaction_respects_the_service_limits() -> None:
     pii = FakePii()
+    assert TextAnalyticsClient("https://foundry.invalid", FakeCredential())  # type: ignore[arg-type]
     text = " ".join(["Alice"] * 5_000)
     redacted, entities = await Redactor(pii, 5120, 5).redact(text)
     assert [len(batch) for batch in pii.batches] == [5, 1]

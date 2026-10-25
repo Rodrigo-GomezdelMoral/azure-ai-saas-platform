@@ -24,6 +24,8 @@ param kubernetesVersion string = '1.36'
 param nodeSizes object = { system: 'Standard_D4as_v5', user: 'Standard_D2as_v5' }
 @description('First day of the month the budget starts.')
 param budgetStartDate string = utcNow('yyyy-MM-01')
+@description('True once AKS has created its node resource group; a first deployment cannot scope a role assignment to a group that does not exist yet.')
+param nodeGroupExists bool = false
 
 var suffix = 'aisaas-prod-swc'
 var tags = { workload: 'aisaas', env: 'prod', owner: 'portfolio', managedBy: 'bicep', repo: 'azure-ai-saas-platform', tenant: 'shared' }
@@ -114,7 +116,7 @@ module sharedAccess 'modules/shared-access.bicep' = {
   }
 }
 
-module nodeCosts 'modules/nodes.bicep' = {
+module nodeCosts 'modules/nodes.bicep' = if (nodeGroupExists) {
   name: 'node-costs', scope: resourceGroup('rg-${suffix}-nodes'), params: { principalIds: [cicdPrincipalId, operatorObjectId], role: costManagementReader }
   dependsOn: [cluster]
 }

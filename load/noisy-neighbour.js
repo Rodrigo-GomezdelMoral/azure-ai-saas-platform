@@ -24,7 +24,7 @@ export const options = {
     },
     steady: {
       executor: "constant-arrival-rate",
-      rate: 5,
+      rate: 1,
       timeUnit: "1s",
       duration: "3m",
       preAllocatedVUs: 10,

@@ -27,8 +27,8 @@ Option 3. Every tenant namespace carries (`k8s/base/networkpolicy.yaml`):
 
 - `default-deny`: an empty `podSelector` with both policy types, which denies all ingress and all egress
   for every pod in the namespace;
-- `allow-ingress-from-platform-gateway`: port 8000 from the `platform` namespace only, where the Gateway's
-  proxies run;
+- `allow-ingress-from-platform-gateway`: port 8000 from the `ingress` namespace only, where the platform's
+  Gateway proxies run;
 - `allow-egress-to-azure`: DNS in `kube-system`, TCP 443 and 10000 to public addresses with the private
   ranges excluded (Entra, Cosmos, Service Bus, Event Grid, Foundry, Search, Key Vault, the RAG platform
   and Managed Redis), and port 8080 to the load-test stub in `platform`.
@@ -37,6 +37,11 @@ The platform namespace mirrors it for the workers (`k8s/platform/networkpolicy.y
 traffic between tenants is therefore denied rather than unconfigured, which is the shape the audit asks
 for, and the cluster's network plugin is Azure CNI overlay with the Cilium data plane and Cilium policy
 (`infra/modules/cluster.bicep`), so the policies are enforced in eBPF rather than iptables.
+
+The `ingress` namespace holds nothing but the Gateway and the proxies AKS deploys for it. It enforces Pod
+Security `baseline` and warns and audits `restricted`, because the managed proxy sets no seccomp profile
+and the customisations AKS allows on it cannot add one; every pod this repository deploys meets
+`restricted`, which the `platform` and tenant namespaces enforce.
 
 Outside the cluster there is still no network of this repository's own: the cluster lives in its managed
 virtual network, egress leaves through the standard load balancer, and every Azure service is reached at

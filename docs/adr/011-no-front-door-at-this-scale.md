@@ -16,16 +16,23 @@ rather than later.
    a WAF policy to maintain, origin health probes, and a second place where routing is configured.
 2. **Front Door Premium now.** The managed WAF rule sets and Private Link to the origin; several times
    the base fee, and a private origin this estate does not have (the landing zone's ADR-002).
-3. **The load balancer and the Gateway API alone**, with TLS terminated by the Gateway's listener and
-   rate limiting done per tenant by the quota gate, which is where a multi-tenant platform needs it.
+3. **The load balancer and the Gateway API alone**, with TLS terminated by an HTTPS listener on the
+   Gateway and rate limiting done per tenant by the quota gate, which is where a multi-tenant platform needs it.
 
 ## Decision
 
 Option 3. The protection a buyer would ask about at this scale, that one tenant cannot flood the
 service for another, is the quota gate's job (ADR-003) and is measured in `docs/benchmarks/`; a WAF at
 the edge would not know which tenant a request belongs to. The platform runs in one region, its customers
-are in Europe, and the Gateway API listener already does routing and TLS. Front Door would add a monthly
-fee and a second routing configuration to maintain for no measured benefit.
+are in Europe, and the Gateway API listener already does routing and can terminate TLS. Front Door would add
+a monthly fee and a second routing configuration to maintain for no measured benefit.
+
+**What this estate runs.** The listener is HTTP on port 80 of the public IP: the estate owns no domain, so
+there is no certificate to present, and bearer tokens cross the internet unencrypted. That is acceptable for
+invented tenants and load-test credentials revoked after each run, and for nothing else. The production step
+is an HTTPS listener with a Key Vault certificate and an Azure DNS record, which the application routing
+add-on automates (Learn: `aks/app-routing-gateway-api-dns-tls`); the admin console never uses the public
+listener (`docs/onboarding.md`).
 
 **Where the decision reverses.** Any one of these, and the first that occurs:
 
@@ -43,7 +50,7 @@ fee and a second routing configuration to maintain for no measured benefit.
 - No edge WAF today. The gateway rejects unauthenticated requests before touching any store
   (`tests/test_tenancy.py::test_middleware_rejects_before_routing`), but volumetric attacks reach the
   load balancer. Azure's platform DDoS protection covers the public IP at the network layer.
-- TLS certificates are the Gateway's to manage rather than the edge's.
+- TLS certificates are the Gateway's to manage rather than the edge's, and this estate has none yet (above).
 
 ## Revisit when
 

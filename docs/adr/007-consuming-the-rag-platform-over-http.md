@@ -23,7 +23,8 @@ customers receive.
 Option 3. The contract is the platform's OpenAPI document, exported offline with `app.openapi()`
 and kept as `docs/upstream-openapi.json`: `POST /v1/answer` takes `{question, conversation_id}` and
 answers with server-sent events named `plan`, `search`, `rerank`, `answer` and finally `verify`,
-whose data is the verified `Answer` with `cost_eur` and `timings_ms`. OpenAPI does not describe the
+each a `PhaseEvent` envelope (`phase`, `trace_id`, `elapsed_ms`, `data`); the `data` of the last one
+is the verified `Answer` with `cost_eur` and `timings_ms`. OpenAPI does not describe the
 event stream, so `app/upstream.py` is a hand-written typed client against that contract rather
 than generated code, and `tests/test_gateway.py` holds the recorded shape of the stream.
 

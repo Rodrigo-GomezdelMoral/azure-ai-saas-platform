@@ -17,3 +17,4 @@ node_modules/
 console/dist/
 load/results/
 k8s/.generated/
+function.zip

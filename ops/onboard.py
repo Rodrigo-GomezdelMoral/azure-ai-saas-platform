@@ -13,6 +13,7 @@ import os
 import subprocess
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -75,9 +76,8 @@ class KeyVaultSigner:
     """RS256 with the vault's key: the private half never leaves Key Vault; the gateway verifies with the public JWK."""
 
     def __init__(self, vault_url: str, key_name: str, credential: AsyncTokenCredential) -> None:
-        self.keys, self.key_name = KeyClient(vault_url, credential), key_name
-        self.crypto = CryptographyClient(f"{vault_url.rstrip('/')}/keys/{key_name}", credential)
-        self.kid, self.jwk = "", dict[str, str]()
+        self.keys, self.key_name, self.jwk = KeyClient(vault_url, credential), key_name, dict[str, str]()
+        self.crypto, self.kid = CryptographyClient(f"{vault_url.rstrip('/')}/keys/{key_name}", credential), ""
 
     async def load(self) -> "KeyVaultSigner":
         key = await self.keys.get_key(self.key_name)
@@ -111,8 +111,7 @@ class Onboarding:
     """Every step converges: a redelivered order or a rerun from the shell ends on the same tenant, not a second one."""
 
     def __init__(self, services: Services) -> None:
-        self.s, self.issued = services, ""
-        self.steps = [self.register, self.namespace, self.federate, self.index]
+        self.s, self.issued, self.steps = services, "", [self.register, self.namespace, self.federate, self.index]
         self.steps += [self.store, self.bucket, self.credential, self.notify]
 
     async def run(self, order: Order, log: Log = print) -> tuple[Tenant, str]:
@@ -265,8 +264,8 @@ class Onboarding:
         return f"{where.database}/{where.container} with hierarchical partition keys"
 
     async def bucket(self, tenant: Tenant) -> str:
-        quota = tenant.quota
-        await self.s.redis.hset(f"quota:{tenant.id}:bucket", mapping={"tokens": quota.burst_cents, "at": time.time()})
+        quota, key = tenant.quota, f"quota:{{{tenant.id}}}:bucket"
+        await self.s.redis.hset(key, mapping={"tokens": quota.burst_cents, "at": time.time()})
         await self.s.cache.ensure(tenant.id)
         return f"{quota.burst_cents} cents of burst, {quota.requests_per_minute} a minute, index idx:cache:{tenant.id}"
 
@@ -334,16 +333,18 @@ async def worker(onboarding: Onboarding, bus: ServiceBusClient, queue: str) -> N
                 await receiver.complete_message(message)
 
 
-async def connect(settings: Settings, credential: AsyncTokenCredential, http: httpx.AsyncClient) -> Services:
-    database = CosmosClient(settings.cosmos_endpoint, credential).get_database_client(settings.cosmos_database)
-    redis = redis_client(settings)
+async def connect(settings: Settings, credential: AsyncTokenCredential, stack: AsyncExitStack) -> Services:
+    enter, redis = stack.enter_async_context, redis_client(settings)
+    http = await enter(httpx.AsyncClient(timeout=60))
+    cosmos = await enter(CosmosClient(settings.cosmos_endpoint, credential))
+    container, cache = cosmos.get_database_client(settings.cosmos_database).get_container_client, RediSearchStore(redis)
     signer = await KeyVaultSigner(settings.keyvault_url, settings.signing_key_name, credential).load()
-    tenants = database.get_container_client(settings.tenants_container)
-    credentials = database.get_container_client(settings.credentials_container)
-    indexes = SearchIndexClient(settings.search_endpoint, credential)
-    indexers = SearchIndexerClient(settings.search_endpoint, credential)
-    events = EventGridPublisherClient(settings.eventgrid_endpoint, credential)
-    cache = RediSearchStore(redis)
+    for close in (signer.keys.close, signer.crypto.close):
+        stack.push_async_callback(close)
+    tenants, credentials = container(settings.tenants_container), container(settings.credentials_container)
+    indexes = await enter(SearchIndexClient(settings.search_endpoint, credential))
+    indexers = await enter(SearchIndexerClient(settings.search_endpoint, credential))
+    events = await enter(EventGridPublisherClient(settings.eventgrid_endpoint, credential))
     return Services(
         settings, credential, http, tenants, credentials, redis, cache, indexes, indexers, signer, events, kubectl_apply
     )
@@ -357,8 +358,8 @@ async def main() -> None:
     parser.add_argument("--worker", action="store_true", help="consume orders from the Service Bus queue")
     args, settings, credential = parser.parse_args(), Settings(), DefaultAzureCredential()
     bus = ServiceBusClient(settings.servicebus_namespace, credential)
-    async with credential, httpx.AsyncClient(timeout=60) as http, bus:
-        onboarding = Onboarding(await connect(settings, credential, http))
+    async with credential, bus, AsyncExitStack() as stack:
+        onboarding = Onboarding(await connect(settings, credential, stack))
         if args.worker:
             await worker(onboarding, bus, settings.onboarding_queue)
         elif args.name:

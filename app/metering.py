@@ -45,7 +45,7 @@ class Drain:
             if "BUSYGROUP" not in str(error):
                 raise
 
-    async def drain_once(self, block_ms: int = 5_000) -> int:
+    async def drain_once(self, block_ms: int = 2_000) -> int:
         stream, group, me, count = self.stream, GROUP, self.consumer, self.batch
         claimed: Any = await self.redis.xautoclaim(stream, group, me, min_idle_time=self.idle_ms, count=count)
         entries: list[tuple[str, dict[str, Any]]] = list(claimed[1])

@@ -16,7 +16,10 @@ resource vault 'Microsoft.KeyVault/vaults@2026-05-15' = {
 
 resource signingKey 'Microsoft.KeyVault/vaults/keys@2026-05-15' = {
   parent: vault, name: keyName, tags: common.tags
-  properties: { kty: 'RSA', keySize: 3072, keyOps: ['sign', 'verify'] }
+  properties: {
+    kty: 'RSA', keySize: 3072, keyOps: ['sign', 'verify']
+    rotationPolicy: { lifetimeActions: [{ action: { type: 'notify' }, trigger: { timeBeforeExpiry: 'P30D' } }] }
+  }
 }
 
 resource signs 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (principal, i) in [signerPrincipalId, operatorObjectId]: {

@@ -40,7 +40,7 @@ local bucket, month = KEYS[1], KEYS[2]
 local reserved, actual, capacity = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
 local tokens = tonumber(redis.call('HGET', bucket, 'tokens') or capacity)
 redis.call('HSET', bucket, 'tokens', math.min(capacity, tokens + reserved - actual))
-if actual > 0 then redis.call('INCRBY', month, actual) redis.call('EXPIRE', month, ARGV[4]) end
+if actual > 0 then redis.call('INCRBYFLOAT', month, actual) redis.call('EXPIRE', month, ARGV[4]) end
 return 1
 """
 
@@ -74,20 +74,21 @@ class QuotaGate:
 
     async def reserve(self, tenant_id: str, q: Quota) -> tuple[Decision, Reservation | None]:
         now = await self.clock()
-        month, minute = time.strftime("%Y-%m", time.gmtime(now)), int(now // 60)
-        keys = [f"quota:{tenant_id}:bucket", f"quota:{tenant_id}:rpm:{minute}", f"quota:{tenant_id}:month:{month}"]
+        month, minute, tag = time.strftime("%Y-%m", time.gmtime(now)), int(now // 60), f"quota:{{{tenant_id}}}"
+        keys = [f"{tag}:bucket", f"{tag}:rpm:{minute}", f"{tag}:month:{month}"]
         args = [now, q.refill_per_second, q.burst_cents, q.estimated_cents, q.requests_per_minute, q.monthly_cents]
         allowed, reason, retry_after, remaining = await self._reserve(keys=keys, args=args)
         decision = Decision(bool(allowed), str(reason), int(retry_after), int(remaining))
         reservation = Reservation(tenant_id, q.estimated_cents, q.burst_cents, month) if decision.allowed else None
         return decision, reservation
 
-    async def settle(self, reservation: Reservation, actual_cents: int) -> None:
-        keys = [f"quota:{reservation.tenant_id}:bucket", f"quota:{reservation.tenant_id}:month:{reservation.month}"]
+    async def settle(self, reservation: Reservation, actual_cents: float) -> None:
+        tag = f"quota:{{{reservation.tenant_id}}}"
+        keys = [f"{tag}:bucket", f"{tag}:month:{reservation.month}"]
         await self._settle(keys=keys, args=[reservation.cents, actual_cents, reservation.capacity, MONTH_KEY_TTL])
 
     async def release(self, reservation: Reservation) -> None:
         await self.settle(reservation, 0)
 
-    async def spent_cents(self, tenant_id: str, month: str) -> int:
-        return int(await self.redis.get(f"quota:{tenant_id}:month:{month}") or 0)
+    async def spent_cents(self, tenant_id: str, month: str) -> float:
+        return float(await self.redis.get(f"quota:{{{tenant_id}}}:month:{month}") or 0)

@@ -29,10 +29,9 @@ class Keys:
         return [dict(jwk) | {"kid": "platform-1"}]
 
     def entra_token(self, roles: list[str], audience: str = AUDIENCE, expired: bool = False) -> str:
-        now = int(time.time())
-        iss = f"https://login.microsoftonline.com/{AUDIENCE}/v2.0"
+        now, iss = int(time.time()), f"https://login.microsoftonline.com/{AUDIENCE}/v2.0"
         claims = {"iss": iss, "aud": audience, "oid": "user-1", "roles": roles, "iat": now}
-        claims["exp"] = now - 10 if expired else now + 600
+        claims["exp"] = now - 600 if expired else now + 600
         return jwt.encode(claims, self.entra, algorithm="RS256")
 
     def credential(self, tenant_id: str, key: rsa.RSAPrivateKey | None = None, kid: str = "platform-1") -> str:

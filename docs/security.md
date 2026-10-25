@@ -17,6 +17,11 @@ first read (`app/main.py`, `console/src/main.ts`). Every other access, from ever
 token: workload identity in the cluster, `DefaultAzureCredential` in the code, no client secret anywhere
 and no secret mounted into any pod (`k8s/base/serviceaccount.yaml` does not even mount the API token).
 
+Every token is verified for signature, audience, issuer and expiry with five minutes of clock skew, the
+default of Microsoft.IdentityModel; a credential signed on a workstation whose clock runs ahead of the
+cluster's would otherwise be refused as not yet valid, which is what happened on the first live run
+(`app/tenancy.py`).
+
 ## Identities and roles
 
 | Identity | Roles, each declared in `infra/` unless noted | Why nothing more |
@@ -25,7 +30,7 @@ and no secret mounted into any pod (`k8s/base/serviceaccount.yaml` does not even
 | `id-saasfn` (Function, KEDA operator) | Cosmos DB data contributor; Service Bus Data Owner, which the trigger's scale controller requires; Storage Blob Data Owner on the Function's own storage | it folds usage events into billing documents |
 | `id-saasonboard` (onboarding workers, operator shell) | Cosmos DB data contributor and Cosmos DB Operator (control plane, to create containers and databases); Service Bus Data Receiver; Event Grid Data Sender; Redis access policy; Key Vault Crypto User; Search Service Contributor and Search Index Data Contributor; Managed Identity Contributor on `id-saasgw` only, to add federated credentials; Graph application permissions `Application.ReadWrite.OwnedBy` and `AppRoleAssignment.ReadWrite.All` and ownership of the gateway's registration (bootstrap script) | it creates the eight artefacts of a tenant and nothing else |
 | `gh-azure-ai-saas-platform` (CI) | AcrPush; AKS RBAC Cluster Admin and Cluster User; Cost Management Reader on the platform group and the node group; Cosmos data reader; app role `Platform.Admin` for the onboarding load test (bootstrap script) | it builds, applies, reads costs and runs load tests |
-| the operator | Key Vault Crypto User; Cosmos DB Operator; Managed Identity Contributor on `id-saasgw`; Cognitive Services User; Redis access policy; AKS RBAC Cluster Admin and User; Cost Management Reader on the node group; app role `Platform.Admin` | onboarding from a workstation and the console |
+| the operator | Key Vault Crypto User; Cosmos DB Operator; Event Grid Data Sender; Managed Identity Contributor on `id-saasgw`; Cognitive Services User; Redis access policy; AKS RBAC Cluster Admin and User; Cost Management Reader on the node group; app role `Platform.Admin` | onboarding from a workstation and the console |
 | the kubelet identity | AcrPull on the shared registry | pulls the image |
 
 The role definition ids are in `infra/modules/*.bicep` and allow-listed in `.gitleaks.toml`; no other

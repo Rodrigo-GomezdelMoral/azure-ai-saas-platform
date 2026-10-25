@@ -34,7 +34,7 @@ Option 2.
 | Network | default-deny namespace policy; ingress only from the Gateway's namespace | same | same |
 | Search | the shared `regulations` index | dedicated index, a copy of the corpus the tenant may extend | dedicated index |
 | Cosmos | partition `/tenantId` in the shared `usage` container | dedicated container `usage-<id>` | dedicated database `t-<id>` |
-| Redis | per-tenant keys (`quota:<id>:*`) and a per-tenant RediSearch index for the cache | same | same |
+| Redis | per-tenant keys (`quota:{<id>}:*`, one hash slot per tenant) and a per-tenant RediSearch index for the cache | same | same |
 | Credential | a Key-Vault-signed API credential, no Entra object | an Entra app registration holding the app role `tenant:<id>` | same |
 | Identity in the cluster | the shared gateway's `id-saasgw` | `id-saasgw` federated to `t-<id>/gateway` | same |
 | Quota of money | 20 € a month, 20 requests a minute | 200 €, 120 a minute | 2,000 €, 600 a minute, burst |

@@ -110,7 +110,7 @@ def principal(request: Request) -> Principal:
     return found
 
 
-def usage_event(tenant: Tenant, cents: int, cached: bool, redacted: bool, upstream_ms: int) -> UsageEvent:
+def usage_event(tenant: Tenant, cents: float, cached: bool, redacted: bool, upstream_ms: int) -> UsageEvent:
     where = {"database": tenant.isolation.database, "container": tenant.isolation.container}
     trace_id, occurred = telemetry.current_trace_id(), datetime.now(UTC)
     common = {"tenant_id": tenant.id, "trace_id": trace_id, "cents": cents, "cached": cached, "redacted": redacted}
@@ -140,7 +140,7 @@ async def answer(body: Question, request: Request) -> StreamingResponse:
 
 
 async def reserve(gateway: Gateway, tenant: Tenant) -> Reservation | None:
-    """Quota before work. A deployment may switch enforcement off for the noisy-neighbour comparison; nothing else."""
+    """Quota before work; enforcement is switched off only for the noisy-neighbour comparison and the baseline."""
     if not gateway.settings.enforce_quota:
         return None
     decision, reservation = await gateway.quotas.reserve(tenant.id, tenant.quota)
@@ -166,11 +166,12 @@ async def relay(
         await release(gateway, held)
         return
     final, elapsed = exchange.final or {}, int((time.monotonic() - started) * 1000)
-    cents = round(float(final.get("cost_eur", 0.0)) * 100)
+    answer = final.get("data") or final
+    cents = float(answer.get("cost_eur", 0.0)) * 100
     if held is not None:
         await gateway.quotas.settle(held, cents)
     await gateway.meter.record(usage_event(tenant, cents, False, prepared.entities > 0, elapsed))
-    if final and not final.get("refusal"):
+    if final and not answer.get("refusal"):
         await gateway.cache.remember(tenant.id, prepared.stored, final, probe.vector)
 
 
@@ -180,7 +181,7 @@ async def usage(request: Request) -> dict[str, Any]:
     tenant, month = principal(request).require_tenant(), datetime.now(UTC).strftime("%Y-%m")
     spent = await gateway.quotas.spent_cents(tenant.id, month)
     period = {"tenant": tenant.id, "plan": tenant.plan, "month": month}
-    return period | {"spent_cents": spent, "monthly_cents": tenant.quota.monthly_cents}
+    return period | {"spent_cents": round(spent, 4), "monthly_cents": tenant.quota.monthly_cents}
 
 
 def admin(request: Request) -> Gateway:

@@ -21,8 +21,7 @@ class CircuitBreaker:
     """Opens after consecutive failures, refuses for a reset window, then lets one request through to probe."""
 
     def __init__(self, failures: int, reset_s: float, clock: Callable[[], float] = time.monotonic) -> None:
-        self.failures, self.reset_s, self.clock = failures, reset_s, clock
-        self.consecutive, self.open_until = 0, 0.0
+        self.failures, self.reset_s, self.clock, self.consecutive, self.open_until = failures, reset_s, clock, 0, 0.0
 
     @property
     def retry_after(self) -> int:

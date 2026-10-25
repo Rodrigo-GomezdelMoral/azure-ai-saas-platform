@@ -25,8 +25,7 @@ class TenantSpanProcessor(SpanProcessor):
 def configure(settings: Settings) -> None:
     if not settings.applicationinsights_connection_string:
         return
-    resource = Resource.create({"service.name": SERVICE})
-    connection = settings.applicationinsights_connection_string
+    resource, connection = Resource.create({"service.name": SERVICE}), settings.applicationinsights_connection_string
     configure_azure_monitor(connection_string=connection, credential=DefaultAzureCredential(), resource=resource)
     provider = trace.get_tracer_provider()
     if isinstance(provider, TracerProvider):
