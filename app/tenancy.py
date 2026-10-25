@@ -109,7 +109,7 @@ class TenantResolver:
 
     async def _from_credential(self, token: str) -> Principal:
         kid = str(jwt.get_unverified_header(token).get("kid", ""))
-        if kid not in self._keys and time.monotonic() - self._refreshed > 60:
+        if kid not in self._keys and (not self._refreshed or time.monotonic() - self._refreshed > 60):
             await self.refresh_keys()
         claims = self._verify(token, lambda: self._credential_key(kid), CREDENTIAL_ISSUER)
         tenant_id, digest = str(claims.get("sub", "")), digest_of(token)
