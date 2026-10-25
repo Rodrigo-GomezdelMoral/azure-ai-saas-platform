@@ -220,7 +220,10 @@ Kubernetes 1.36 (the AKS default in Sweden Central), validated with `kubeconform
   endpoints on 443 and 10000 with the private ranges excluded, and the load stub.
 - **Tier arithmetic.** Starter: quota 1 CPU / 1 Gi requests, 2 / 2 Gi limits, 10 pods, HPA 1–3;
   Business: 2 / 2 Gi, 4 / 4 Gi, 20 pods, HPA 2–5, priority 10,000; Enterprise: 4 / 4 Gi, 8 / 8 Gi,
-  40 pods, HPA 2–10, priority 100,000 with preemption, dedicated pool. `docs/architecture.md` draws
+  40 pods, HPA 2–10, priority 100,000 with preemption, dedicated pool. Each pod is sized so that the HPA
+  ceiling fits the quota: Starter 100m / 256Mi requests and 500m / 512Mi limits, Business 250m / 384Mi and
+  750m / 768Mi, Enterprise 400m / 400Mi and 800m / 800Mi (a Business pod at one CPU stopped the fifth
+  replica at the quota in the first load run). `docs/architecture.md` draws
   it and `tests/test_isolation.py` exercises the data stores in phase 5.
 
 ## SDK reference — verified against the installed packages

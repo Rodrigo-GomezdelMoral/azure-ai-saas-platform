@@ -1,8 +1,6 @@
 """The thesis test: a request authenticated as tenant A can never reach tenant B's data, in any store.
 
-Each case names a store and probes it with A's credentials for B's record. New stores are added as the phases
-build them; the test stays red for any store whose probe can see across the tenant boundary.
-"""
+Each case probes one store with A's credentials for B's record and stays red if the probe sees across."""
 
 from collections.abc import Awaitable, Callable
 from typing import Any

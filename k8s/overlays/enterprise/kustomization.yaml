@@ -23,7 +23,7 @@ patches:
       - { op: replace, path: /spec/replicas, value: 2 }
       - { op: replace, path: /spec/template/spec/priorityClassName, value: tenant-enterprise }
       - { op: replace, path: /spec/template/spec/containers/0/env/0/value, value: tenant }
-      - { op: replace, path: /spec/template/spec/containers/0/resources, value: { requests: { cpu: 500m, memory: 512Mi }, limits: { cpu: "2", memory: 1Gi } } }
+      - { op: replace, path: /spec/template/spec/containers/0/resources, value: { requests: { cpu: 400m, memory: 400Mi }, limits: { cpu: 800m, memory: 800Mi } } }
       - { op: replace, path: /spec/template/spec/tolerations, value: [{ key: tier, operator: Equal, value: enterprise, effect: NoSchedule }] }
       - { op: replace, path: /spec/template/spec/affinity, value: { nodeAffinity: { requiredDuringSchedulingIgnoredDuringExecution: { nodeSelectorTerms: [{ matchExpressions: [{ key: tier, operator: In, values: [enterprise] }] }] } } } }
   - target: { kind: HTTPRoute, name: gateway }

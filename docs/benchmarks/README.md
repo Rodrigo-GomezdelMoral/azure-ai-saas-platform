@@ -22,6 +22,10 @@ evidence, and this document does not claim numbers it does not have.
   the stub, settlement and metering. The embedding call is the one external dependency in the measured
   path; its deployment's tokens-per-minute limit caps the achievable rate, and a run that hits it shows
   up as a rising p95 with the stub idle.
+- **The embedding deployment's own limit.** The shared `text-embedding-3-small` deployment admits 120
+  requests every ten seconds for every tenant together. Above twelve a second the gateway answers without
+  probing the cache, the degradation `docs/operations/slo.md` lists, so the higher rates measure the
+  gateway without its cache lookup.
 - **PII off.** The load tenants are onboarded with the policy `none`, because Language bills per text
   record and redaction latency would be measured instead of the gateway's.
 
@@ -29,7 +33,7 @@ evidence, and this document does not claim numbers it does not have.
 
 | Script | What it does | Objective | Result file |
 |---|---|---|---|
-| `load/baseline.js` | ramps the arrival rate from 5 to 200 requests a second over four minutes on one Business tenant, whose quota enforcement is off for the run because the result is the gateway's ceiling, not the plan's | p95 of successful requests under 500 ms, failures under 1 %; the rate at which either breaks is the gateway's measured ceiling | `baseline.json` |
+| `load/baseline.js` | five fixed arrival rates, 5, 10, 20, 40 and 80 requests a second, 45 s each, on one Business tenant whose quota enforcement is off for the run, because the result is the gateway's ceiling, not the plan's | p95 of successful requests under 500 ms and failures under 1 % at each rate; the first rate that breaks either is the gateway's measured ceiling | `baseline.json` |
 | `load/noisy-neighbour.js` | a Starter tenant floods the shared gateway at 100 requests a second while a Business tenant runs 1 a second in its own namespace, inside its plan's 120 a minute and its 500-cent burst, for three minutes; run twice, with quota enforcement on and off on the Starter gateway | the protected tenant's p95 with and without enforcement, side by side | `noisy-neighbour-on.json`, `noisy-neighbour-off.json` |
 | `load/onboarding.js` | ten tenants onboarded at once through the admin API, each virtual user polling until its tenant is ready | time to ready, p95 under two minutes | `onboarding.json` |
 

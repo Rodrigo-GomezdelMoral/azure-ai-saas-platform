@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from azure.core.exceptions import HttpResponseError
 from azure.cosmos.exceptions import CosmosResourceNotFoundError
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa, utils
@@ -61,7 +62,8 @@ def services(settings: Settings, keys: Keys, redis: Any, tmp_path: Path) -> Serv
     extra = {"gateway_client_id": AUDIENCE, "cosmos_account_id": ACCOUNT, "gateway_identity_id": IDENTITY}
     extra |= {"oidc_issuer": "https://issuer.invalid/", "onboard_workdir": str(tmp_path)}
     http = httpx.AsyncClient(transport=httpx.MockTransport(cloud))
-    fakes = (Documents(), Documents(), redis, MemoryVectorStore(), AsyncMock(), AsyncMock(), LocalSigner(keys))
+    indexes = AsyncMock(create_index=AsyncMock(side_effect=HttpResponseError(message="the index already exists")))
+    fakes = (Documents(), Documents(), redis, MemoryVectorStore(), indexes, AsyncMock(), LocalSigner(keys))
     apply = AsyncMock(return_value="applied")
     return Services(settings.model_copy(update=extra), FakeCredential(), http, *fakes, AsyncMock(), apply)  # type: ignore[arg-type]
 
