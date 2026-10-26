@@ -35,8 +35,8 @@ The credential is a JWT signed by the vault's key; the platform keeps its SHA-25
 
 ## From the console
 
-`/console` is served by the starter gateway pod and reached through a port-forward, never through the public
-listener: `kubectl -n tenants-starter port-forward deployment/gateway 8000:8000`, then
+`/console` and the admin API it calls are served by the starter gateway pod and reached through a port-forward,
+never through the public listener: `kubectl -n tenants-starter port-forward deployment/gateway 8000:8000`, then
 `http://localhost:8000/console/`, the one redirect URI the gateway's registration accepts. The operator signs in with Entra (the `Platform.Admin` app role on
 the gateway's registration), submits the company name, the plan and the PII policy, and watches the
 eight steps complete. Before submitting, the browser generates an RSA key pair; the worker seals the

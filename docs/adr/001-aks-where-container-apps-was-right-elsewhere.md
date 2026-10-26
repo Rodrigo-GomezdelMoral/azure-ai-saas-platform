@@ -43,7 +43,7 @@ what they promise.
 
 ## Trade-offs
 
-- AKS bills continuously. At rest the cluster is one system node, about 185 € a month with the shared
+- AKS bills continuously. At rest the cluster is one system node, about 178 € a month with the shared
   services around it (`docs/cost.md`); the other repositories cost nothing at rest. `az aks stop` and
   `make destroy` are part of the documented workflow.
 - A control plane to operate: version upgrades, add-on lifecycles (the managed NGINX ingress is being

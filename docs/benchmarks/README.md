@@ -7,7 +7,7 @@ file next to it, with the configuration and the SKUs it ran on, and the README l
 **Published runs.** `2026-10-24-onboarding.md` has the first onboarding times, measured from a
 workstation the day the cluster was first deployed. `2026-10-25-load.md` has the three scenarios: the
 baseline's p95 at each rate, the noisy-neighbour pair with its chart, and ten concurrent onboardings
-through the admin API.
+through the admin API. Its noisy-neighbour pair ran from a workstation, for the reason that file gives.
 
 ## What is measured, and what is not
 

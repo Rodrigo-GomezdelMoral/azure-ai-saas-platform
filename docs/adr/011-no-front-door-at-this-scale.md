@@ -29,10 +29,11 @@ a monthly fee and a second routing configuration to maintain for no measured ben
 
 **What this estate runs.** The listener is HTTP on port 80 of the public IP: the estate owns no domain, so
 there is no certificate to present, and bearer tokens cross the internet unencrypted. That is acceptable for
-invented tenants and load-test credentials revoked after each run, and for nothing else. The production step
+invented tenants and their load-test credentials, which are reused between runs and valid for a year (revoking
+one means writing `revoked` on its credential record; no command does it), and for nothing else. The production step
 is an HTTPS listener with a Key Vault certificate and an Azure DNS record, which the application routing
-add-on automates (Learn: `aks/app-routing-gateway-api-dns-tls`); the admin console never uses the public
-listener (`docs/onboarding.md`).
+add-on automates (Learn: `aks/app-routing-gateway-api-dns-tls`); the admin console and the admin API never use
+the public listener (`docs/onboarding.md`), so no `Platform.Admin` token crosses it.
 
 **Where the decision reverses.** Any one of these, and the first that occurs:
 

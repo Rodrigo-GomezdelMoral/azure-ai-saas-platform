@@ -32,5 +32,5 @@
 <text x="92" y="528" font-size="13" fill="#4B5563">Quota enforcement on</text>
 <rect x="268.0" y="516" width="14" height="14" rx="3" fill="#B45309"/>
 <text x="288.0" y="528" font-size="13" fill="#4B5563">Quota enforcement off</text>
-<text x="72" y="550" font-size="11" fill="#6B7280">Series: the Business tenant&#x27;s successful requests only (threshold sub-metric). The Starter flood is offered at 100 req/s in both runs.</text>
+<text x="72" y="550" font-size="11" fill="#6B7280">Series: the Business tenant&#x27;s successful requests only (threshold sub-metric). Flood offered at 100 req/s, delivered 88 with enforcement and 47 without; one run each.</text>
 </svg>

@@ -100,12 +100,17 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Concurrent onboarding
+      - name: Concurrent onboarding, through a port-forward because the admin API is not on the public listener
         if: inputs.scenario == 'all' || inputs.scenario == 'onboarding'
         run: |
+          kubectl -n tenants-starter port-forward deployment/gateway 8000:8000 > /dev/null &
+          forward=$!
+          timeout 60 bash -c 'until curl -sf -o /dev/null http://localhost:8000/healthz; do sleep 1; done'
           ADMIN_TOKEN=$(az account get-access-token --scope "api://$API_AUDIENCE/.default" --query accessToken -o tsv)
-          export ADMIN_TOKEN RUN_ID="${GITHUB_RUN_NUMBER}"
-          k6 run load/onboarding.js || [ $? -eq 99 ]
+          export ADMIN_TOKEN RUN_ID="${GITHUB_RUN_NUMBER}" GATEWAY_URL=http://localhost:8000
+          k6 run load/onboarding.js || status=$?
+          kill "$forward"
+          [ "${status:-0}" -eq 0 ] || [ "$status" -eq 99 ]
 
       - name: Point the load tenants back at the RAG platform
         if: always()

@@ -12,7 +12,7 @@ diagram per tier, the request path and the identities.
 ```mermaid
 graph TB
     C["Customer applications<br/>Entra token or platform credential"] --> GW["Gateway API · approuting-istio<br/>namespace ingress, one public IP"]
-    ADM["Admin console<br/>/console, Entra sign-in"] --> GW
+    ADM["Admin console and admin API<br/>Entra sign-in, by port-forward only"] -.-> S
     GW -->|"/v1 → tenants-starter"| S["Starter gateway deployment<br/>shared namespace, TENANT_SCOPE=starter"]
     GW -->|"/t/{id} → t-{id}"| D["Dedicated gateway deployments<br/>Business and Enterprise namespaces"]
     S --> R["Azure Managed Redis<br/>quota buckets · usage stream · one cache index per tenant"]
@@ -50,8 +50,8 @@ graph LR
     end
     subgraph vnet["AKS managed virtual network · Azure CNI overlay · Cilium data plane and policy"]
         LB["Standard load balancer<br/>one public IP, HTTP listener on port 80"] --> GWP["Gateway proxies<br/>namespace ingress"]
-        GWP --> NS1["tenants-starter<br/>default deny · ingress from platform only"]
-        GWP --> NS2["t-{id} per dedicated tenant<br/>default deny · ingress from platform only"]
+        GWP --> NS1["tenants-starter<br/>default deny · ingress from namespace ingress only"]
+        GWP --> NS2["t-{id} per dedicated tenant<br/>default deny · ingress from namespace ingress only"]
         NS1 -. "egress: DNS, TCP 443, 10000 and 5671 to public ranges only" .-> OUT["Outbound through the load balancer"]
         NS2 -. "same policy" .-> OUT
     end

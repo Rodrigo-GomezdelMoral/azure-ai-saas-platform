@@ -62,7 +62,7 @@ requests on the tenant's tier.
 | Service Bus queues | in flight | messages not yet consumed | the queues are recreated by the template; onboarding orders are re-submitted from the console |
 | Container image | built from `main` | none | `deploy.yml` rebuilds and pushes |
 
-**RTO: 4 hours.** The template deploys in about 40 minutes (the cluster is the long pole), the image
+**RTO: 4 hours.** The template deploys in about twelve minutes (the cluster is the long pole), the image
 builds in 10, the platform and starter namespaces apply in 5, and re-onboarding a hundred tenants from
 their documents at under two minutes each, ten at a time, fits in the remainder. **RPO: 4 hours** for
 billing records, the periodic backup interval of the Cosmos account; metering in flight is lost for at
