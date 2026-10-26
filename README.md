@@ -29,7 +29,7 @@ than a sentence, and `docs/cost.md` reconciles the two sources of cost and expla
 ```mermaid
 graph TB
     C["Customer applications<br/>Entra token or platform credential"] --> GW["Gateway API · approuting-istio<br/>one public IP"]
-    ADM["Admin console<br/>/console"] --> GW
+    ADM["Operator<br/>admin console and API by port-forward"] -.-> S
     GW -->|"/v1"| S["Starter gateway<br/>shared namespace"]
     GW -->|"/t/{id}"| D["Dedicated gateways<br/>Business and Enterprise namespaces"]
     S --> R["Azure Managed Redis<br/>quotas · usage stream · cache per tenant"]
@@ -62,14 +62,14 @@ The network between tenants is default deny, the only networking this portfolio 
 
 | Claim | Evidence in this repository |
 |---|---|
-| One tenant cannot reach another's record, credential, quota, cached answer, usage or index | `tests/test_isolation.py::test_tenant_a_cannot_reach_tenant_b`, parameterised over the six stores; the tenant is read from the token claim only (`app/tenancy.py`) |
+| One tenant cannot reach another's record, credential, quota, cached answer, usage or index | `tests/test_isolation.py::test_tenant_a_cannot_reach_tenant_b`, parameterised over the six stores; the tenant is read from the token claim only (`app/tenancy.py`); for the index, at the gateway boundary, until the RAG platform honours the field |
 | A tenant at its ceiling is rejected before any upstream call is made | `tests/test_gateway.py::test_tenant_at_its_ceiling_is_rejected_before_any_upstream_call`, asserting on the upstream recorder |
 | Usage recorded equals usage consumed, within 2 %, over a simulated month | `tests/test_metering.py::test_metering_accuracy_over_a_simulated_month` |
 | A cross-tenant cache hit is impossible by construction | one RediSearch index per tenant over keys prefixed by the tenant (`app/cache.py`); `tests/test_metering.py::test_redisearch_keys_and_index_carry_the_tenant` |
 | The request path never writes billing data synchronously | Redis Stream → consumer group → Service Bus → Function → Cosmos (`app/metering.py`, `functions/aggregate.py`, ADR-004) |
 | The RAG platform is consumed over HTTP against its contract, with a circuit breaker and a stated degradation | `app/upstream.py`, `docs/upstream-openapi.json`, `tests/test_gateway.py::test_circuit_breaker_opens_after_failures_and_probes_after_the_reset` (ADR-007) |
 | The PII policy is per tenant and respects the service limits | `app/privacy.py`, `tests/test_gateway.py::test_pii_policy_decides_what_leaves_and_what_is_kept`, `test_redaction_respects_the_service_limits` (ADR-008) |
-| A customer is onboarded in under two minutes with every artefact the plan sells | `ops/onboard.py`, `tests/test_operations.py`, `docs/onboarding.md`; measured on 2026-10-24 from a workstation at 9 to 14 s for Starter and 63 s for Business (`docs/benchmarks/2026-10-24-onboarding.md`); ten at once through the admin API were ready at a p95 of 16.3 s (`docs/benchmarks/2026-10-25-load.md`) |
+| A customer is onboarded in under two minutes with every artefact the plan sells | `ops/onboard.py`, `tests/test_operations.py`, `docs/onboarding.md`; measured on 2026-10-24 from a workstation at 9 to 14 s for Starter and 63 s for Business (`docs/benchmarks/2026-10-24-onboarding.md`); ten at once through the admin API were ready at a p95 of 16.3 s (`docs/benchmarks/2026-10-25-load.md`); Enterprise is not yet measured, and ready means every object applied, not the pods rolled out |
 | The cost per tenant comes from two independent sources, reconciled | `ops/chargeback.py`, `tests/test_operations.py::test_chargeback_reconciles_both_sources_and_explains_the_gap`, `docs/cost.md` |
 | No plaintext credential is persisted anywhere | hashes in Cosmos, signing in Key Vault, sealed delivery to the console (`docs/security.md`) |
 
@@ -88,7 +88,9 @@ make console                                           # npm ci, tsc, esbuild �
 ```
 
 The tests need no Azure resource: Redis is `fakeredis`, the RAG platform is a recorded stream, Cosmos
-and Search are in-memory doubles, Entra tokens are signed with keys the test suite generates.
+and Search are in-memory doubles, Entra tokens are signed with keys the test suite generates. A plain
+`kubectl kustomize` on a folder under `k8s/` needs `--load-restrictor LoadRestrictionsNone`, because the
+shared `k8s/settings.env` sits above the bases; the Makefile, `k8s/render.sh` and the onboarding pass it.
 
 ## Deploy
 
@@ -144,7 +146,8 @@ records the method and each published run with its date, configuration and SKUs.
 (`docs/benchmarks/2026-10-25-load.md`) measured a p95 of 534 to 564 ms from 5 to 40 requests a second,
 above the 500 ms objective by the embedding round trip, and a ceiling between 40 and 80 requests a
 second. Under a Starter tenant's flood, the protected Business tenant answered every request, at a p95 of
-524 ms with quota enforcement and 596 ms without; ten concurrent onboardings were ready at a p95 of 16.3 s.
+524 ms with quota enforcement and 596 ms without, one run each; without enforcement the flood reached only
+about 47 of its 100 requests a second. Ten concurrent onboardings were ready at a p95 of 16.3 s.
 
 ![The protected tenant's p50, p95 and p99 with quota enforcement on and off](docs/benchmarks/2026-10-25-noisy-neighbour.svg)
 
@@ -206,8 +209,8 @@ and the test that mitigates it.
   the 170 lines the specification's module table gives them; 900 of support Python (`tests/`, `load/`),
   raised once from 600 in phase 7 because the three thesis tests carry their own doubles; 600 lines of
   Bicep, raised once from 500 in phase 3; 500 of YAML under `k8s/`; 700 of TypeScript; fewer than 25
-  comment lines. The counts after the close-out of 2026-10-24: 89 files, 1,700 and 900 lines of Python,
-  586 of Bicep, 462 of YAML, 215 of TypeScript, 0 comments.
+  comment lines. The counts on 2026-10-26: 89 files, 1,700 and 900 lines of Python, 586 of Bicep,
+  458 of YAML, 215 of TypeScript, 0 comments.
 - **One region, Free control-plane tier, one system node at rest.** The estate runs intermittently and
   is sized for that; `docs/operations/slo.md` states the production posture for the Enterprise objective.
 - **The per-tenant index is sent but not yet honoured.** The RAG platform answers from its configured
@@ -218,11 +221,16 @@ and the test that mitigates it.
   `baseline` and warns and audits `restricted`: AKS's proxy sets no seccomp profile and its
   allow-listed customisations cannot add one. Every pod this repository deploys meets `restricted`,
   which the platform and tenant namespaces enforce.
-- **HTTP on the public IP.** The estate owns no domain, so the listener has no certificate (ADR-011).
+- **HTTP on the public IP.** The estate owns no domain, so the listener has no certificate (ADR-011). It
+  carries `/v1` and the dedicated prefixes only; the admin API and the console are reached by port-forward.
 - **No Front Door, no private networking, no agent**, each a recorded decision (ADR-011, ADR-013, ADR-012).
 - **The load tests run against a stub**, so they measure the gateway and not the RAG platform. The
   measured p95 misses its 500 ms objective, and with enforcement on a flood still drew 500s instead of
-  429s once the Redis client's pool of 100 connections ran out (`docs/benchmarks/2026-10-25-load.md`).
+  429s once the Redis client's pool of 100 connections ran out; the pool is per pod, so every Starter
+  tenant on that pod got them (`docs/benchmarks/2026-10-25-load.md`).
+- **Dedicated tenants keep the image they were onboarded with.** `deploy.yml` updates the platform and the
+  starter namespace; a Business or Enterprise namespace is updated by running its onboarding again, which
+  converges.
 - **Starter customers authenticate with a platform credential**, Business and Enterprise customers with
   either the credential or an Entra token from their own app registration; client credentials for that
   registration are issued by the platform operator on request.

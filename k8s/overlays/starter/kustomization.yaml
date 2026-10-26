@@ -6,7 +6,3 @@ resources:
 labels:
   - pairs: { saas.tier: starter }
     includeSelectors: false
-patches:
-  - target: { kind: HTTPRoute, name: gateway }
-    patch: |-
-      - { op: add, path: /spec/rules/0/matches/-, value: { path: { type: PathPrefix, value: /admin } } }

@@ -44,8 +44,11 @@ Under load the spot pool adds up to two `Standard_D2as_v5` at 0.01496 €/h, abo
 run all day. The first Enterprise tenant adds a regular `Standard_D2as_v5` with its disk, 64.21 € a
 month, for as long as the tenant exists. `az aks stop` deallocates the nodes and leaves the disks, the
 load balancer, the public IP and Redis: about 36 € a month, 1.2 € a day. `make destroy` leaves nothing
-but the soft-deleted vault, which costs nothing. The budget alert in `infra/modules/alerts.bicep` fires at
-40 € actual and forecast, which is the threshold for an estate that should be stopped when not in use.
+but the soft-deleted vault, which costs nothing. The budget in `infra/modules/alerts.bicep` fires at
+40 € actual and forecast, but it is scoped to the platform resource group: the nodes, their disks, the load
+balancer and the public IP bill to the node resource group, which it does not see, so it does not catch a
+forgotten cluster; `make stop` after every run is the guard. No Cost Management anomaly alert is deployed;
+the budget's forecast threshold stands in for it, with the same blind spot.
 
 AKS cost analysis, the per-namespace view in the portal, needs the Standard control-plane tier and an
 enterprise or customer agreement; this subscription is pay-as-you-go and the tier is Free, so per-tenant
@@ -98,5 +101,5 @@ What the model is not: measured. The chargeback report is, and the first one rep
 - `make stop` and `make start` around every demo and load run; `make destroy` when the evidence is in.
 - Every resource carries the `repo` tag and the Enterprise pool carries its tier; the chargeback
   workflow reads both resource groups by tag.
-- The budget at 40 € a month with actual and forecast alerts, so a forgotten cluster is noticed within
-  a week rather than a month.
+- The budget at 40 € a month with actual and forecast alerts on the platform resource group; it does not
+  see the node resource group, so it does not notice a forgotten cluster (above).
