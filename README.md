@@ -5,8 +5,10 @@ into a business: the same capability sold to a hundred companies, each onboarded
 isolated from the others in compute, data and quota, metered as an event stream, and costed from two
 independent sources so that the gross margin per plan is a measured number rather than a hope.
 
-*The recording of a customer being onboarded, from the company name to the first credential, belongs
-here. It is on the end-of-build list and is added once it exists; `docs/onboarding.md` is its script.*
+A Starter customer onboarded from a workstation: eight idempotent steps, and the credential shown once
+(truncated here). `docs/onboarding.md` has the steps per plan.
+
+![The onboarding command creating a Starter tenant in eight steps and printing its credential once, truncated](docs/images/onboarding.png)
 
 > Every tenant in this repository's fixtures, benchmarks and examples is an invented company. No
 > customer data, name or contact exists anywhere in it.
@@ -26,23 +28,9 @@ than a sentence, and `docs/cost.md` reconciles the two sources of cost and expla
 
 ## Architecture
 
-```mermaid
-graph TB
-    C["Customer applications<br/>Entra token or platform credential"] --> GW["Gateway API · approuting-istio<br/>one public IP"]
-    ADM["Operator<br/>admin console and API by port-forward"] -.-> S
-    GW -->|"/v1"| S["Starter gateway<br/>shared namespace"]
-    GW -->|"/t/{id}"| D["Dedicated gateways<br/>Business and Enterprise namespaces"]
-    S --> R["Azure Managed Redis<br/>quotas · usage stream · cache per tenant"]
-    D --> R
-    S --> F["Shared Foundry account<br/>Language PII · embeddings"]
-    D --> F
-    S --> RAG["azure-rag-platform<br/>/v1/answer over HTTP"]
-    D --> RAG
-    R --> MD["Metering drain"] --> SB[["Service Bus"]] --> FN["Flex Consumption Function"] --> COS[("Cosmos DB serverless<br/>/tenantId then /month")]
-    S -->|"orders"| SB --> ONB["Onboarding workers<br/>KEDA on queue length"]
-    ONB --> K8S["Kubernetes API · Graph · Search · Key Vault · Event Grid"]
-    COS --> CB["Chargeback<br/>metering vs Cost Management"]
-```
+![Customer traffic through the Gateway API to the Starter and dedicated gateways on AKS, with Redis quotas, metering to Cosmos DB through Service Bus and a Function, and the RAG platform upstream](docs/images/architecture.png)
+
+![The platform's resource group as deployed, in the Azure portal](docs/images/resource-group.png)
 
 Three plans, three levels of isolation, each one priced (ADR-002):
 
@@ -198,39 +186,3 @@ and the test that mitigates it.
 | [011](docs/adr/011-no-front-door-at-this-scale.md) | Rejection: no Front Door at this scale, and the traffic level at which that reverses |
 | [012](docs/adr/012-no-agent-in-the-gateway.md) | Rejection: no agent in the gateway |
 | [013](docs/adr/013-network-policy-as-the-only-networking-this-portfolio-deploys.md) | Cluster-level network policy, the only networking this portfolio deploys |
-
-## Scope and simplifications
-
-- **Size.** The specification asks for at most 50 files and 1,200 lines of Python. Its own mandated
-  layout does not fit in either, so `tests/test_budget.py` enforces the counting rule in `CLAUDE.md`:
-  at most 90 tracked files outside `docs/`, raised once from 80 in phase 9 because the console, the three
-  k6 scripts, the stub and the four workflows did not fit; 1,700 lines of application Python (`app/`,
-  `ops/`, `functions/`), raised once from 1,200 in phase 8 because onboarding and chargeback did not fit
-  the 170 lines the specification's module table gives them; 900 of support Python (`tests/`, `load/`),
-  raised once from 600 in phase 7 because the three thesis tests carry their own doubles; 600 lines of
-  Bicep, raised once from 500 in phase 3; 500 of YAML under `k8s/`; 700 of TypeScript; fewer than 25
-  comment lines. The counts on 2026-10-26: 89 files, 1,700 and 900 lines of Python, 586 of Bicep,
-  458 of YAML, 215 of TypeScript, 0 comments.
-- **One region, Free control-plane tier, one system node at rest.** The estate runs intermittently and
-  is sized for that; `docs/operations/slo.md` states the production posture for the Enterprise objective.
-- **The per-tenant index is sent but not yet honoured.** The RAG platform answers from its configured
-  index until a small change in its repository accepts the `index` field, the author's pull request.
-- **Managed NGINX is not used.** The application routing add-on's NGINX loses support after
-  November 2026, so the cluster uses the add-on's Gateway API implementation.
-- **The managed Gateway proxy has a namespace of its own**, `ingress`, which enforces Pod Security
-  `baseline` and warns and audits `restricted`: AKS's proxy sets no seccomp profile and its
-  allow-listed customisations cannot add one. Every pod this repository deploys meets `restricted`,
-  which the platform and tenant namespaces enforce.
-- **HTTP on the public IP.** The estate owns no domain, so the listener has no certificate (ADR-011). It
-  carries `/v1` and the dedicated prefixes only; the admin API and the console are reached by port-forward.
-- **No Front Door, no private networking, no agent**, each a recorded decision (ADR-011, ADR-013, ADR-012).
-- **The load tests run against a stub**, so they measure the gateway and not the RAG platform. The
-  measured p95 misses its 500 ms objective, and with enforcement on a flood still drew 500s instead of
-  429s once the Redis client's pool of 100 connections ran out; the pool is per pod, so every Starter
-  tenant on that pod got them (`docs/benchmarks/2026-10-25-load.md`).
-- **Dedicated tenants keep the image they were onboarded with.** `deploy.yml` updates the platform and the
-  starter namespace; a Business or Enterprise namespace is updated by running its onboarding again, which
-  converges.
-- **Starter customers authenticate with a platform credential**, Business and Enterprise customers with
-  either the credential or an Entra token from their own app registration; client credentials for that
-  registration are issued by the platform operator on request.
