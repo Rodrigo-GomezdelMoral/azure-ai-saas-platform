@@ -1,5 +1,7 @@
 # Regulatory Intelligence as a Service
 
+Built by **Rodrigo Martín Gómez del Moral Herranz** · [LinkedIn](https://www.linkedin.com/in/rodrigo-mart%C3%ADn-g%C3%B3mez-del-moral-herranz) · [Portfolio](https://rodrigogomez.es)
+
 The regulatory-intelligence platform in `azure-rag-platform` works. This repository is what turns it
 into a business: the same capability sold to a hundred companies, each onboarded in under two minutes,
 isolated from the others in compute, data and quota, metered as an event stream, and costed from two
@@ -43,6 +45,8 @@ Three plans, three levels of isolation, each one priced (ADR-002):
 | Credential | Key-Vault-signed API credential | Entra app registration with the role `tenant:<id>`, plus the credential | same |
 | Quota of money | 20 € a month, 20 requests a minute | 200 €, 120 a minute | 2,000 €, 600 a minute, burst |
 
+![Starter shares the namespace, the index and a partition; Business has its own namespace, index and container; Enterprise its own nodes and database; quotas of 20, 200 and 2,000 € a month](docs/images/tiers.png)
+
 The network between tenants is default deny, the only networking this portfolio deploys (ADR-013), and
 `docs/architecture.md` draws the container, network and per-tier isolation diagrams.
 
@@ -60,6 +64,11 @@ The network between tenants is default deny, the only networking this portfolio 
 | A customer is onboarded in under two minutes with every artefact the plan sells | `ops/onboard.py`, `tests/test_operations.py`, `docs/onboarding.md`; measured on 2026-10-24 from a workstation at 9 to 14 s for Starter and 63 s for Business (`docs/benchmarks/2026-10-24-onboarding.md`); ten at once through the admin API were ready at a p95 of 16.3 s (`docs/benchmarks/2026-10-25-load.md`); Enterprise is not yet measured, and ready means every object applied, not the pods rolled out |
 | The cost per tenant comes from two independent sources, reconciled | `ops/chargeback.py`, `tests/test_operations.py::test_chargeback_reconciles_both_sources_and_explains_the_gap`, `docs/cost.md` |
 | No plaintext credential is persisted anywhere | hashes in Cosmos, signing in Key Vault, sealed delivery to the console (`docs/security.md`) |
+
+Every request takes the same path: the tenant from the token, a quota reservation, redaction, the
+tenant's cache, the RAG platform and the settlement.
+
+![The tenant from the token, a reservation that answers 429 with Retry-After over quota, redaction, a cache that answers on a hit, the RAG platform and the settlement](docs/images/request.png)
 
 **When the RAG platform is down**, the gateway answers 503 with `Retry-After`, releases the tenant's
 quota reservation and keeps serving questions whose answers are in the tenant's cache; new questions
@@ -147,6 +156,8 @@ degradation and the disaster recovery runbook with its RTO and RPO.
 Modelled in `docs/cost.md` from the retail prices of 2026-10-21 and the inference cost the RAG platform
 measured; the monthly chargeback report replaces the model with billed figures.
 
+![Usage flows from the gateway to a Redis stream, a drain, Service Bus and a Function into Cosmos DB per tenant and month; the chargeback joins it with Cost Management, in euros per tenant](docs/images/metering.png)
+
 | Plan | Price | Gross margin at the plan's ceiling | Gross margin at thirty percent of the ceiling |
 |---|---|---|---|
 | Starter | 49 € | 58.6 % | 87.2 % |
@@ -169,6 +180,18 @@ Every identity is federated to a Kubernetes service account or a GitHub subject;
 `docs/security.md` has the full table and the multi-tenancy threat table, each threat mapped to the file
 and the test that mitigates it.
 
+## Well-Architected design
+
+How the design maps to the five pillars of the Azure Well-Architected Framework, and the trade-off accepted in each.
+
+| Pillar | Applied | Trade-off accepted |
+|---|---|---|
+| Reliability | A circuit breaker on the upstream with 503 and `Retry-After`, cached answers served while the RAG platform is down, deployments that roll back on failure, RTO and RPO in `docs/operations/slo.md` | A spot node pool for the shared tiers, which costs availability (ADR-009) |
+| Security | Three isolation tiers, the tenant read from the token claim only, default-deny network policy between tenants, no plaintext credential persisted, gitleaks and trivy in CI | Network policy is the only networking deployed (ADR-013) |
+| Cost Optimization | Cost per tenant from two independent sources, reconciled; quotas in euros per plan; the gross margin per plan modelled and replaced by billed figures every month | No database per tenant (ADR-010); the platform costs about 178 € a month at rest |
+| Operational Excellence | Onboarding in eight idempotent steps, in under two minutes; cluster workloads deployed by `deploy.yml` in the `production` environment; k6 scenarios and the chargeback report as workflows | The infrastructure itself is deployed from a workstation |
+| Performance Efficiency | Quota enforced before any upstream call, a per-tenant semantic cache, metering off the request path as an event stream | A p95 of 534 to 564 ms against a 500 ms objective, the embedding round trip measured and stated |
+
 ## Decisions
 
 | ADR | Decision |
@@ -186,3 +209,7 @@ and the test that mitigates it.
 | [011](docs/adr/011-no-front-door-at-this-scale.md) | Rejection: no Front Door at this scale, and the traffic level at which that reverses |
 | [012](docs/adr/012-no-agent-in-the-gateway.md) | Rejection: no agent in the gateway |
 | [013](docs/adr/013-network-policy-as-the-only-networking-this-portfolio-deploys.md) | Cluster-level network policy, the only networking this portfolio deploys |
+
+## Author
+
+**Rodrigo Martín Gómez del Moral Herranz** · [LinkedIn](https://www.linkedin.com/in/rodrigo-mart%C3%ADn-g%C3%B3mez-del-moral-herranz) · [Portfolio](https://rodrigogomez.es)
