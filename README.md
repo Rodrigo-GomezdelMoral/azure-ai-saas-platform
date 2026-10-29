@@ -1,6 +1,8 @@
 # Regulatory Intelligence as a Service
 
-Built by **Rodrigo Martín Gómez del Moral Herranz** · [LinkedIn](https://www.linkedin.com/in/rodrigo-mart%C3%ADn-g%C3%B3mez-del-moral-herranz) · [Portfolio](https://rodrigogomez.es)
+Built by **Rodrigo Martín Gómez del Moral Herranz**
+
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Rodrigo-GomezdelMoral)&nbsp;&nbsp;[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTIwLjQ1IDIwLjQ1aC0zLjU2di01LjU3YzAtMS4zMy0uMDMtMy4wNC0xLjg1LTMuMDQtMS44NSAwLTIuMTQgMS40NS0yLjE0IDIuOTR2NS42N0g5LjM1VjloMy40MXYxLjU2aC4wNWMuNDgtLjkgMS42NC0xLjg1IDMuMzctMS44NSAzLjYgMCA0LjI3IDIuMzcgNC4yNyA1LjQ2djYuMjh6TTUuMzQgNy40M2EyLjA2IDIuMDYgMCAxIDEgMC00LjEyIDIuMDYgMi4wNiAwIDAgMSAwIDQuMTJ6TTcuMTIgMjAuNDVIMy41NlY5aDMuNTZ2MTEuNDV6TTIyLjIyIDBIMS43N0MuNzkgMCAwIC43NyAwIDEuNzN2MjAuNTRDMCAyMy4yMy43OSAyNCAxLjc3IDI0aDIwLjQ1Yy45OCAwIDEuNzgtLjc3IDEuNzgtMS43M1YxLjczQzI0IC43NyAyMy4yIDAgMjIuMjIgMHoiLz48L3N2Zz4%3D)](https://www.linkedin.com/in/rodrigo-mart%C3%ADn-g%C3%B3mez-del-moral-herranz)&nbsp;&nbsp;[![Portfolio](https://img.shields.io/badge/rodrigogomezdelmoralherranz.es-181717?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjIiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8%2BPHBhdGggZD0iTTIgMTJoMjBNMTIgMmExNSAxNSAwIDAgMSAwIDIwTTEyIDJhMTUgMTUgMCAwIDAgMCAyMCIvPjwvc3ZnPg%3D%3D)](https://rodrigogomezdelmoralherranz.es)
 
 The regulatory-intelligence platform in `azure-rag-platform` works. This repository is what turns it
 into a business: the same capability sold to a hundred companies, each onboarded in under two minutes,
@@ -28,6 +30,25 @@ traffic degrade another's; can one customer's data ever reach another's index; h
 be onboarded, and by whom. This repository answers each of them with a measurement or a test rather
 than a sentence, and `docs/cost.md` reconciles the two sources of cost and explains the gap between them.
 
+## What it does
+
+- Sells the regulatory-intelligence platform to many companies, each onboarded in under two minutes in eight idempotent steps.
+- Isolates every tenant in compute, data and quota, with three plans and three levels of isolation.
+- Rejects a tenant at its quota before any upstream call, and caches answers per tenant so that one can never see another's.
+- Meters usage as an event stream and reconciles the cost per tenant from two independent sources, so the margin per plan is measured.
+- Keeps serving cached answers when the upstream platform is down.
+
+## Repo card
+
+| | |
+|---|---|
+| **Type** | Multi-tenant SaaS on the shared cloud platform |
+| **Azure services** | Azure Kubernetes Service (Gateway API and a spot node pool), Azure Managed Redis, Azure Cosmos DB, Service Bus, Azure Functions (Flex Consumption), Key Vault, Event Grid, Azure Storage, Application Insights; shared: Microsoft Foundry, Azure AI Search, Container Registry and Log Analytics |
+| **AI** | No agent: the RAG platform upstream over HTTP, text-embedding-3-small for the per-tenant semantic cache and Azure AI Language for PII redaction |
+| **Stack** | Python 3.12 with FastAPI; Kubernetes manifests with kustomize; k6 load tests; a TypeScript operator console |
+| **Security** | The tenant read from the token claim only, default-deny network policy between tenants, Key Vault-signed credentials, no plaintext credential persisted |
+| **Infrastructure and delivery** | Bicep from a workstation; GitHub Actions with OIDC: `ci`, `deploy` (with rollback), `load` and `chargeback` |
+
 ## Architecture
 
 ![Customer traffic through the Gateway API to the Starter and dedicated gateways on AKS, with Redis quotas, metering to Cosmos DB through Service Bus and a Function, and the RAG platform upstream](docs/images/architecture.png)
@@ -49,6 +70,21 @@ Three plans, three levels of isolation, each one priced (ADR-002):
 
 The network between tenants is default deny, the only networking this portfolio deploys (ADR-013), and
 `docs/architecture.md` draws the container, network and per-tier isolation diagrams.
+
+## How it works
+
+### Onboarding a customer
+
+```
+make onboard NAME="Globex Industries" PLAN=business PII=before_storage
+```
+
+The command prints each of the eight steps with its duration and ends with the elapsed time and the
+customer's first credential, shown once. The same steps run behind the console at `/console`, where
+the operator signs in with Entra, submits the company name and the plan, watches the steps complete and
+receives the credential sealed to the browser session. Business and Enterprise customers also get an app
+registration holding the `tenant:<id>` role on the gateway, so they can move from the credential to
+Entra tokens. `docs/onboarding.md` has the per-plan table, the prerequisites and the recording script.
 
 ## What this demonstrates
 
@@ -74,20 +110,49 @@ tenant's cache, the RAG platform and the settlement.
 quota reservation and keeps serving questions whose answers are in the tenant's cache; new questions
 wait until the circuit closes (ADR-007).
 
-## Quick start
+## Load tests and operations
 
-```
-python -m venv .venv && . .venv/Scripts/activate      # or .venv/bin/activate
-make install                                           # the pinned dependencies, ruff, mypy, pytest, fakeredis
-make check                                             # ruff, ruff format, mypy, pytest (44 tests, no Azure needed)
-make kube-validate                                     # kubectl kustomize per overlay, then kubeconform -strict
-make console                                           # npm ci, tsc, esbuild → console/dist
-```
+`load/` holds the three k6 scenarios, baseline, noisy neighbour and concurrent onboarding, and the
+in-cluster stub they run against so that no load test ever spends a model token. `docs/benchmarks/`
+records the method and each published run with its date, configuration and SKUs. The run of 2026-10-25
+(`docs/benchmarks/2026-10-25-load.md`) measured a p95 of 534 to 564 ms from 5 to 40 requests a second,
+above the 500 ms objective by the embedding round trip, and a ceiling between 40 and 80 requests a
+second. Under a Starter tenant's flood, the protected Business tenant answered every request, at a p95 of
+524 ms with quota enforcement and 596 ms without, one run each; without enforcement the flood reached only
+about 47 of its 100 requests a second. Ten concurrent onboardings were ready at a p95 of 16.3 s.
 
-The tests need no Azure resource: Redis is `fakeredis`, the RAG platform is a recorded stream, Cosmos
-and Search are in-memory doubles, Entra tokens are signed with keys the test suite generates. A plain
-`kubectl kustomize` on a folder under `k8s/` needs `--load-restrictor LoadRestrictionsNone`, because the
-shared `k8s/settings.env` sits above the bases; the Makefile, `k8s/render.sh` and the onboarding pass it.
+![The protected tenant's p50, p95 and p99 with quota enforcement on and off](docs/benchmarks/2026-10-25-noisy-neighbour.svg)
+
+`docs/operations/slo.md` states the objectives per tier, the error budget policy, the designed order of
+degradation and the disaster recovery runbook with its RTO and RPO.
+
+## Cost and unit economics
+
+Modelled in `docs/cost.md` from the retail prices of 2026-10-21 and the inference cost the RAG platform
+measured; the monthly chargeback report replaces the model with billed figures.
+
+![Usage flows from the gateway to a Redis stream, a drain, Service Bus and a Function into Cosmos DB per tenant and month; the chargeback joins it with Cost Management, in euros per tenant](docs/images/metering.png)
+
+| Plan | Price | Gross margin at the plan's ceiling | Gross margin at thirty percent of the ceiling |
+|---|---|---|---|
+| Starter | 49 € | 58.6 % | 87.2 % |
+| Business | 490 € | 58.6 % | 87.2 % |
+| Enterprise | 2,900 € | 27.9 % | 76.1 % |
+
+The platform costs about 178 € a month at rest and 6 € a day; the first Enterprise tenant adds a node.
+ADR-010 is the cost model that rejects a database per tenant, with the counts at which the model breaks.
+
+## Well-Architected design
+
+How the design maps to the five pillars of the Azure Well-Architected Framework, and the trade-off accepted in each.
+
+| Pillar | Applied | Trade-off accepted |
+|---|---|---|
+| Reliability | A circuit breaker on the upstream with 503 and `Retry-After`, cached answers served while the RAG platform is down, deployments that roll back on failure, RTO and RPO in `docs/operations/slo.md` | A spot node pool for the shared tiers, which costs availability (ADR-009) |
+| Security | Three isolation tiers, the tenant read from the token claim only, default-deny network policy between tenants, no plaintext credential persisted, gitleaks and trivy in CI | Network policy is the only networking deployed (ADR-013) |
+| Cost Optimization | Cost per tenant from two independent sources, reconciled; quotas in euros per plan; the gross margin per plan modelled and replaced by billed figures every month | No database per tenant (ADR-010); the platform costs about 178 € a month at rest |
+| Operational Excellence | Onboarding in eight idempotent steps, in under two minutes; cluster workloads deployed by `deploy.yml` in the `production` environment; k6 scenarios and the chargeback report as workflows | The infrastructure itself is deployed from a workstation |
+| Performance Efficiency | Quota enforced before any upstream call, a per-tenant semantic cache, metering off the request path as an event stream | A p95 of 534 to 564 ms against a 500 ms objective, the embedding round trip measured and stated |
 
 ## Deploy
 
@@ -122,52 +187,7 @@ third subject, not the branch, and without a matching credential Entra answers `
 matching federated identity record found". The deploy workflow runs in that environment so that a named
 reviewer can be required before anything reaches the cluster.
 
-## Onboarding a customer
-
-```
-make onboard NAME="Globex Industries" PLAN=business PII=before_storage
-```
-
-The command prints each of the eight steps with its duration and ends with the elapsed time and the
-customer's first credential, shown once. The same steps run behind the console at `/console`, where
-the operator signs in with Entra, submits the company name and the plan, watches the steps complete and
-receives the credential sealed to the browser session. Business and Enterprise customers also get an app
-registration holding the `tenant:<id>` role on the gateway, so they can move from the credential to
-Entra tokens. `docs/onboarding.md` has the per-plan table, the prerequisites and the recording script.
-
-## Load tests and operations
-
-`load/` holds the three k6 scenarios, baseline, noisy neighbour and concurrent onboarding, and the
-in-cluster stub they run against so that no load test ever spends a model token. `docs/benchmarks/`
-records the method and each published run with its date, configuration and SKUs. The run of 2026-10-25
-(`docs/benchmarks/2026-10-25-load.md`) measured a p95 of 534 to 564 ms from 5 to 40 requests a second,
-above the 500 ms objective by the embedding round trip, and a ceiling between 40 and 80 requests a
-second. Under a Starter tenant's flood, the protected Business tenant answered every request, at a p95 of
-524 ms with quota enforcement and 596 ms without, one run each; without enforcement the flood reached only
-about 47 of its 100 requests a second. Ten concurrent onboardings were ready at a p95 of 16.3 s.
-
-![The protected tenant's p50, p95 and p99 with quota enforcement on and off](docs/benchmarks/2026-10-25-noisy-neighbour.svg)
-
-`docs/operations/slo.md` states the objectives per tier, the error budget policy, the designed order of
-degradation and the disaster recovery runbook with its RTO and RPO.
-
-## Unit economics
-
-Modelled in `docs/cost.md` from the retail prices of 2026-10-21 and the inference cost the RAG platform
-measured; the monthly chargeback report replaces the model with billed figures.
-
-![Usage flows from the gateway to a Redis stream, a drain, Service Bus and a Function into Cosmos DB per tenant and month; the chargeback joins it with Cost Management, in euros per tenant](docs/images/metering.png)
-
-| Plan | Price | Gross margin at the plan's ceiling | Gross margin at thirty percent of the ceiling |
-|---|---|---|---|
-| Starter | 49 € | 58.6 % | 87.2 % |
-| Business | 490 € | 58.6 % | 87.2 % |
-| Enterprise | 2,900 € | 27.9 % | 76.1 % |
-
-The platform costs about 178 € a month at rest and 6 € a day; the first Enterprise tenant adds a node.
-ADR-010 is the cost model that rejects a database per tenant, with the counts at which the model breaks.
-
-## Identities and roles
+### Identities and roles
 
 | Identity | Runs as | Holds |
 |---|---|---|
@@ -179,18 +199,6 @@ ADR-010 is the cost model that rejects a database per tenant, with the counts at
 Every identity is federated to a Kubernetes service account or a GitHub subject; no client secret exists.
 `docs/security.md` has the full table and the multi-tenancy threat table, each threat mapped to the file
 and the test that mitigates it.
-
-## Well-Architected design
-
-How the design maps to the five pillars of the Azure Well-Architected Framework, and the trade-off accepted in each.
-
-| Pillar | Applied | Trade-off accepted |
-|---|---|---|
-| Reliability | A circuit breaker on the upstream with 503 and `Retry-After`, cached answers served while the RAG platform is down, deployments that roll back on failure, RTO and RPO in `docs/operations/slo.md` | A spot node pool for the shared tiers, which costs availability (ADR-009) |
-| Security | Three isolation tiers, the tenant read from the token claim only, default-deny network policy between tenants, no plaintext credential persisted, gitleaks and trivy in CI | Network policy is the only networking deployed (ADR-013) |
-| Cost Optimization | Cost per tenant from two independent sources, reconciled; quotas in euros per plan; the gross margin per plan modelled and replaced by billed figures every month | No database per tenant (ADR-010); the platform costs about 178 € a month at rest |
-| Operational Excellence | Onboarding in eight idempotent steps, in under two minutes; cluster workloads deployed by `deploy.yml` in the `production` environment; k6 scenarios and the chargeback report as workflows | The infrastructure itself is deployed from a workstation |
-| Performance Efficiency | Quota enforced before any upstream call, a per-tenant semantic cache, metering off the request path as an event stream | A p95 of 534 to 564 ms against a 500 ms objective, the embedding round trip measured and stated |
 
 ## Decisions
 
@@ -212,4 +220,6 @@ How the design maps to the five pillars of the Azure Well-Architected Framework,
 
 ## Author
 
-**Rodrigo Martín Gómez del Moral Herranz** · [LinkedIn](https://www.linkedin.com/in/rodrigo-mart%C3%ADn-g%C3%B3mez-del-moral-herranz) · [Portfolio](https://rodrigogomez.es)
+**Rodrigo Martín Gómez del Moral Herranz**
+
+[![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Rodrigo-GomezdelMoral)&nbsp;&nbsp;[![LinkedIn](https://img.shields.io/badge/LinkedIn-0A66C2?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTIwLjQ1IDIwLjQ1aC0zLjU2di01LjU3YzAtMS4zMy0uMDMtMy4wNC0xLjg1LTMuMDQtMS44NSAwLTIuMTQgMS40NS0yLjE0IDIuOTR2NS42N0g5LjM1VjloMy40MXYxLjU2aC4wNWMuNDgtLjkgMS42NC0xLjg1IDMuMzctMS44NSAzLjYgMCA0LjI3IDIuMzcgNC4yNyA1LjQ2djYuMjh6TTUuMzQgNy40M2EyLjA2IDIuMDYgMCAxIDEgMC00LjEyIDIuMDYgMi4wNiAwIDAgMSAwIDQuMTJ6TTcuMTIgMjAuNDVIMy41NlY5aDMuNTZ2MTEuNDV6TTIyLjIyIDBIMS43N0MuNzkgMCAwIC43NyAwIDEuNzN2MjAuNTRDMCAyMy4yMy43OSAyNCAxLjc3IDI0aDIwLjQ1Yy45OCAwIDEuNzgtLjc3IDEuNzgtMS43M1YxLjczQzI0IC43NyAyMy4yIDAgMjIuMjIgMHoiLz48L3N2Zz4%3D)](https://www.linkedin.com/in/rodrigo-mart%C3%ADn-g%C3%B3mez-del-moral-herranz)&nbsp;&nbsp;[![Portfolio](https://img.shields.io/badge/rodrigogomezdelmoralherranz.es-181717?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjIiPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEwIi8%2BPHBhdGggZD0iTTIgMTJoMjBNMTIgMmExNSAxNSAwIDAgMSAwIDIwTTEyIDJhMTUgMTUgMCAwIDAgMCAyMCIvPjwvc3ZnPg%3D%3D)](https://rodrigogomezdelmoralherranz.es)
