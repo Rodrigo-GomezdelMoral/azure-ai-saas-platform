@@ -9,7 +9,7 @@ into a business: the same capability sold to a hundred companies, each onboarded
 isolated from the others in compute, data and quota, metered as an event stream, and costed from two
 independent sources so that the gross margin per plan is a measured number rather than a hope.
 
-<p align="center"><a href="https://rodrigogomezdelmoral.es/en/projects/azure-ai-saas-platform#video"><img src="docs/images/author/demo-video.png" alt="Watch the demo video" height="48"></a></p>
+<p align="center"><a href="https://rodrigogomezdelmoral.es/en/projects/azure-ai-saas-platform#video"><img src="docs/images/author/demo-video.png" alt="Watch the AI solution video" height="48"></a></p>
 
 **Built to standard.** This AI solution is designed, built, validated and operated in alignment with the **Microsoft
 Responsible AI Standard** (Fairness, Reliability and Safety, Privacy and Security, Inclusiveness, Transparency,
