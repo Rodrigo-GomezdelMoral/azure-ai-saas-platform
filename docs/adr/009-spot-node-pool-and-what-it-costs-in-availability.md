@@ -4,7 +4,7 @@
 
 ## Context
 
-The cluster is the one resource in this portfolio that bills by the hour whether or not a customer is
+The cluster bills by the hour whether or not a customer is
 asking anything. The system pool is one node at rest; the question is what the user capacity under load
 should run on, and whether every tier should run on the same answer.
 
@@ -33,16 +33,16 @@ the system node is full: Starter first, then Business, never Enterprise (ADR-002
 **What it costs in availability.** A spot eviction removes a node with thirty seconds' notice. Business
 runs two replicas with a pod disruption window set by the HPA minimum, so an eviction costs capacity, not
 service; Starter runs one replica at rest and an eviction costs the seconds a reschedule takes, which is
-inside the Starter error budget (`docs/operations/slo.md`). Enterprise is not exposed.
+inside the Starter error budget ([`docs/operations/slo.md`](../operations/slo.md)). Enterprise is not exposed.
 
 **What it saves.** A spot `D2as_v5` costs about a fifth of a regular one at today's retail price in
-Sweden Central (`docs/cost.md`): two spot nodes under load cost less than half of one regular node.
+Sweden Central ([`docs/cost.md`](../cost.md)): two spot nodes under load cost less than half of one regular node.
 
 ## Trade-offs
 
 - Spot capacity is not guaranteed to exist; the autoscaler may find none. The fallback is the system node
   and, if the system node is full, the Starter tier degrades first by design.
-- Evictions appear as pod restarts in the tenant namespaces; the dashboards in `docs/operations/slo.md`
+- Evictions appear as pod restarts in the tenant namespaces; the dashboards in [`docs/operations/slo.md`](../operations/slo.md)
   distinguish them from crashes by the node event.
 
 ## Revisit when

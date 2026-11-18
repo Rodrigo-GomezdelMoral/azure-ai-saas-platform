@@ -42,7 +42,7 @@ Option 2.
 What every tier shares, by construction and by price: the cluster and its control plane, the
 Gateway and its proxies, the Managed Redis instance, the Cosmos account, the Service Bus
 namespace, the Function, the search service, and the RAG platform with its model deployments.
-`docs/cost.md` attributes the shared part to nobody and says so; that gap is the honest number.
+[`docs/cost.md`](../cost.md) attributes the shared part to nobody and says so; that gap is the honest number.
 
 The tenant is never read from a header, a path or a query string. The routing prefix `/t/<id>`
 only chooses a namespace; inside it the gateway verifies that the token's tenant is the tenant the

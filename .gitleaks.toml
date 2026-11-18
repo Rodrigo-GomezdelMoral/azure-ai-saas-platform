@@ -5,10 +5,10 @@ useDefault = true
 
 [[rules]]
 id = "email-address"
-description = "An email address; the repository commits none"
+description = "An email address; the repository commits one, the author's professional address in the README"
 regex = '''[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'''
 [rules.allowlist]
-regexes = ['''@example\.(com|invalid)''', '''users\.noreply\.github\.com''']
+regexes = ['''@example\.(com|invalid)''', '''users\.noreply\.github\.com''', '''rodrigo\.gomezdelmoral@gmail\.com''']
 
 [[rules]]
 id = "guid"

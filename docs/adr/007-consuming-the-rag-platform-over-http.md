@@ -4,7 +4,7 @@
 
 ## Context
 
-`azure-rag-platform` already answers regulatory questions with verified, cited claims. This
+The upstream RAG platform already answers regulatory questions with verified, cited claims. This
 repository sells that capability to many customers. The temptation is to import its retrieval and
 generation code, or to copy it, and run it inside the gateway: one process, no network hop, no
 second deployment. That would also make this repository a second owner of a pipeline it did not
@@ -32,7 +32,7 @@ The client authenticates with the gateway's own identity: `id-saasgw` holds the 
 role on the platform's API registration, and the token comes from the workload identity, so no
 shared secret exists between the two systems. The gateway sends the tenant's `index` with every
 question; the platform ignores the field until it is taught to honour it, which is a small change
-in that repository and the author's pull request, and `docs/security.md` says so.
+in that repository and the author's pull request, and [`docs/security.md`](../security.md) says so.
 
 The stream is proxied unchanged, line by line, and only the `verify` event's data is parsed, for
 `cost_eur`. The gateway never interprets intermediate phases: they are the platform's progress

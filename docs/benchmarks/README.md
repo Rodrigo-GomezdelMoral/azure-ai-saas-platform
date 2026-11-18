@@ -4,8 +4,8 @@ Three k6 scenarios under `load/`, run by `load.yml` from a GitHub-hosted runner 
 gateway, never against the RAG platform. This file records the method; each published run is a dated
 file next to it, with the configuration and the SKUs it ran on, and the README links the latest.
 
-**Published runs.** `2026-10-24-onboarding.md` has the first onboarding times, measured from a
-workstation the day the cluster was first deployed. `2026-10-25-load.md` has the three scenarios: the
+**Published runs.** [`2026-10-24-onboarding.md`](2026-10-24-onboarding.md) has the first onboarding times, measured from a
+workstation the day the cluster was first deployed. [`2026-10-25-load.md`](2026-10-25-load.md) has the three scenarios: the
 baseline's p95 at each rate, the noisy-neighbour pair with its chart, and ten concurrent onboardings
 through the admin API. Its noisy-neighbour pair ran from a workstation, for the reason that file gives.
 
@@ -24,7 +24,7 @@ through the admin API. Its noisy-neighbour pair ran from a workstation, for the 
   up as a rising p95 with the stub idle.
 - **The embedding deployment's own limit.** The shared `text-embedding-3-small` deployment admits 120
   requests every ten seconds for every tenant together. Above twelve a second the gateway answers without
-  probing the cache, the degradation `docs/operations/slo.md` lists, so the higher rates measure the
+  probing the cache, the degradation [`docs/operations/slo.md`](../operations/slo.md) lists, so the higher rates measure the
   gateway without its cache lookup.
 - **PII off.** The load tenants are onboarded with the policy `none`, because Language bills per text
   record and redaction latency would be measured instead of the gateway's.
