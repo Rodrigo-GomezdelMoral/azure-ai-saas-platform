@@ -1,7 +1,7 @@
 # Architecture
 
-Regulatory Intelligence as a Service is a multi-tenant gateway in front of the RAG platform in
-`azure-rag-platform`, consumed over HTTP against its OpenAPI contract and never imported (ADR-007). The
+Regulatory Intelligence as a Service is a multi-tenant gateway in front of the upstream RAG
+platform, consumed over HTTP against its OpenAPI contract and never imported (ADR-007). The
 gateway owns everything a hundred paying customers add to a platform that already works: tenant
 resolution, quotas, metering, a per-tenant semantic cache, a per-tenant PII policy, onboarding and cost
 attribution. This document holds the container diagram, the network diagram, the tenant isolation
@@ -19,7 +19,7 @@ graph TB
     D --> R
     S --> F["Shared Foundry account<br/>Language PII detection · embeddings"]
     D --> F
-    S --> RAG["azure-rag-platform /v1/answer<br/>server-sent events, cost_eur in the final event"]
+    S --> RAG["Upstream RAG platform /v1/answer<br/>server-sent events, cost_eur in the final event"]
     D --> RAG
     R --> MD["Metering drain<br/>consumer group → Service Bus"]
     MD --> SB[["Service Bus<br/>queues usage and onboarding"]]
@@ -57,7 +57,7 @@ graph LR
     end
     CL --> LB
     OUT --> PAAS["Entra · Cosmos DB · Service Bus · Event Grid · Foundry · Search · Key Vault · Managed Redis<br/>public endpoints, Entra tokens, no private endpoint"]
-    OUT --> RAG["azure-rag-platform on Container Apps<br/>public ingress, Rag.Query app role required"]
+    OUT --> RAG["Upstream RAG platform on Container Apps<br/>public ingress, Rag.Query app role required"]
 ```
 
 **There is no peering, in either direction.** The audit expects a diagram with both peerings; the estate
@@ -146,4 +146,4 @@ call that costs money, and the request path never writes a billing row (ADR-003,
 | `id-saasonboard` | the onboarding workers and the operator's shell | `platform/onboarding` |
 | `gh-azure-ai-saas-platform` | the four workflows | `ref:refs/heads/main`, `pull_request`, `environment:production` |
 
-`docs/security.md` lists what each one may do and why nothing else is granted.
+[`docs/security.md`](security.md) lists what each one may do and why nothing else is granted.

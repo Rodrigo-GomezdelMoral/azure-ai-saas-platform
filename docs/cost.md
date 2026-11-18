@@ -58,7 +58,7 @@ attribution of cluster cost relies on tags and on the allocation rule above.
 
 The plans and their ceilings are in `app/models.py`; the prices are list prices. Inference is modelled
 at 0.005 € per answer, inside the 0.0025 € to 0.0104 € per answer the RAG platform measured for its
-reranker configurations (`azure-rag-platform/docs/cost.md`). The shared infrastructure, 178 € a month,
+reranker configurations. The shared infrastructure, 178 € a month,
 is allocated by usage share at the mix ADR-002 observes: eighty Starter, sixteen Business and four
 Enterprise tenants, 23,360 € of monthly revenue.
 
@@ -94,7 +94,7 @@ What the model is not: measured. The chargeback report is, and the first one rep
 | Redis memory | about seventy thousand cached answers across tenants, at roughly 7 KB each | `Balanced_B1`, 0.02992 €/h, twice B0 |
 | Enterprise pool | every Enterprise tenant | one node each, 64.21 € a month; the pool's ceiling is raised with the count |
 | Cosmos serverless | sustained request-unit consumption or a tenant-month near the partition limit | provisioned autoscale on the Enterprise containers (ADR-005) |
-| The system node | the Gateway proxies plus Starter and Business pods at rest on 4 vCPUs | a second system node, 118.20 € a month, or the Standard control-plane tier with zones for the Enterprise objective (`docs/operations/slo.md`) |
+| The system node | the Gateway proxies plus Starter and Business pods at rest on 4 vCPUs | a second system node, 118.20 € a month, or the Standard control-plane tier with zones for the Enterprise objective ([`docs/operations/slo.md`](operations/slo.md)) |
 
 ## Cost control
 

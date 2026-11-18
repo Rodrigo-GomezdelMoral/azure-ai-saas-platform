@@ -1,12 +1,12 @@
-# ADR-013 · Cluster-level network policy, the only networking this portfolio deploys
+# ADR-013 · Cluster-level network policy, the only networking deployed
 
 **Status:** accepted · **Date:** 2026-10-21
 
 ## Context
 
-The landing zone's ADR-002 records why this portfolio deploys no spoke network, no private endpoint and
+The shared platform's ADR-002 records why the workloads deploy no spoke network, no private endpoint and
 no private DNS zone: identity is the security boundary, and the private networking would add cost and
-operations for no capability the workloads need. Every repository repeats that in one sentence and does
+operations for no capability the workloads need. Every workload repeats that in one sentence and does
 not re-argue it. This repository is the one place where networking solves a problem identity cannot:
 two pods in the same cluster can reach each other over the pod network regardless of what token either
 of them holds.

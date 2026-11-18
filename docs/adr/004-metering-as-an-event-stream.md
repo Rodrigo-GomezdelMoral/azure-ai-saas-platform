@@ -51,7 +51,7 @@ queue); KEDA in the cluster scales the onboarding workers, not this path.
   stream's pending list and the queue's dead-letter sub-queue, the latter alerted on.
 - Duplicates are bounded, not eliminated. An idempotent fold would need a per-event record, which
   is the database write per request this decision avoids; the tolerance is stated in the test and in
-  `docs/cost.md`.
+  [`docs/cost.md`](../cost.md).
 
 ## Revisit when
 

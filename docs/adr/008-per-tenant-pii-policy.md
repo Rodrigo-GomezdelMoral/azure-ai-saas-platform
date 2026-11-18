@@ -32,7 +32,7 @@ Option 2. `Tenant.pii` is one of:
 `app/main.py` uses the first for the upstream call and the second as the cache key and cached
 question. Redaction is Azure Language's PII detection on the shared Foundry account, called with
 the gateway's identity under the role Cognitive Services User, within the service's documented
-limits — 5,120 characters per document, five documents per synchronous request — which the
+limits (5,120 characters per document, five documents per synchronous request), which the
 `Redactor` enforces by chunking at a whitespace boundary and batching, both tested. The
 specification's "batches under 1,000 documents" is the language-detection limit; PII detection
 allows five, and the code uses five.
@@ -42,7 +42,7 @@ request ends with 502 and nothing is sent or stored. Serving the unredacted ques
 breach the policy exists to prevent.
 
 The usage event carries `redacted`, so the bill shows how many of a tenant's requests paid for
-Language text records; `docs/cost.md` prices it per plan.
+Language text records; [`docs/cost.md`](../cost.md) prices it per plan.
 
 ## Trade-offs
 

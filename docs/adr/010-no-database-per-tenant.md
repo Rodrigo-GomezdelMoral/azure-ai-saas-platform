@@ -13,7 +13,7 @@ monthly revenue at list price.
 ## Options
 
 1. **A Cosmos account, a search service and a Redis per tenant.** The full boundary. The platform's
-   shared services cost about 178 € a month at rest (`docs/cost.md`); a hundred of them is 17,800 €, 76 %
+   shared services cost about 178 € a month at rest ([`docs/cost.md`](../cost.md)); a hundred of them is 17,800 €, 76 %
    of revenue before a single answer is paid for. There is no business at any tier.
 2. **One account, a database per tenant with provisioned throughput.** The smallest throughput a
    database can own is 400 RU/s, 0.007 € per 100 RU/s per hour, so 20.4 € a month per tenant. Eighty

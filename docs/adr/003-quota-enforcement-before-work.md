@@ -30,9 +30,9 @@ token counts, and that platform is closed; cents are also the unit the margin th
 atomically: a burst bucket (`quota:{<id>}:bucket`, capacity `burst_cents`, refilled at
 `monthly_cents` per month), a per-minute counter (`quota:{<id>}:rpm:<minute>`) and the month's
 measured spend (`quota:{<id>}:month:<YYYY-MM>`). On entry the gateway reserves the plan's
-`estimated_cents`; the script refuses with a reason — `monthly` when measured spend plus the
+`estimated_cents`; the script refuses with a reason (`monthly` when measured spend plus the
 reservation would pass the plan, `burst` when the bucket cannot cover it, `rate` when the minute is
-full — and a `retry_after`. On exit the gateway settles the reservation with the cost from the
+full) and a `retry_after`. On exit the gateway settles the reservation with the cost from the
 final event, which refunds the unused part of the estimate or charges the excess, and adds the
 measured cost to the month. A failed or cancelled request releases its reservation entirely.
 
@@ -50,7 +50,7 @@ their ceiling are tenants to upsell, and a tenant hitting it every day is a plan
 wrong.
 
 Redis unavailable means the gate cannot decide, and the gateway **fails closed** with 503: the
-quota-bypass threat in `docs/security.md` is a tenant obtaining work without a reservation, and an
+quota-bypass threat in [`docs/security.md`](../security.md) is a tenant obtaining work without a reservation, and an
 open gate would be exactly that.
 
 ## Trade-offs

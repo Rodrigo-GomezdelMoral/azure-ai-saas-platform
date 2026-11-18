@@ -4,8 +4,8 @@
 
 ## Context
 
-Three repositories in this portfolio build agents with Microsoft Agent Framework. This one sells the
-output of one of them to many customers. The temptation to put an agent in the gateway comes in three
+The upstream RAG platform builds its agents with Microsoft Agent Framework. This repository sells its
+output to many customers. The temptation to put an agent in the gateway comes in three
 forms: an agent that decides routing, an agent that reconciles costs, and an agent that assists the
 operator in the console.
 
@@ -26,7 +26,7 @@ the isolation claims conditional on a model's judgement. Operations are the same
 idempotent steps in a fixed order, and cost reconciliation is a query and a division.
 
 `agent_framework` appears nowhere in this repository; `tests/test_budget.py` fails if it does. The
-agents that answer the questions live in `azure-rag-platform`, consumed over HTTP (ADR-007).
+agents that answer the questions live in the upstream RAG platform, consumed over HTTP (ADR-007).
 
 ## Trade-offs
 

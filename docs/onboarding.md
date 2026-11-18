@@ -18,7 +18,7 @@ and behind the console; both paths end with the customer's first credential and 
 | `notify` | `saas.tenant.onboarded` on the platform's Event Grid topic | same | same |
 
 Measured on 2026-10-24 from a workstation: 9 to 14 s for a Starter tenant and 63 s for a Business
-tenant (`docs/benchmarks/2026-10-24-onboarding.md`).
+tenant ([`docs/benchmarks/2026-10-24-onboarding.md`](benchmarks/2026-10-24-onboarding.md)).
 
 Every step is idempotent: a redelivered order or a second run with the same name converges on the same
 tenant. A failed step marks the tenant `failed` with the reason; fix the cause and run again.
@@ -52,7 +52,7 @@ onboarding workers from zero on queue length, and the worker runs the same eight
 2. The Microsoft Graph grants that Bicep cannot hold exist: the gateway's app registration with the
    `Platform.Admin` role and the `Console.Access` scope, `id-saasonboard` as an owner of that registration
    holding `Application.ReadWrite.OwnedBy` and `AppRoleAssignment.ReadWrite.All`, and `id-saasgw` holding
-   `Rag.Query` on the RAG platform's API. The author's bootstrap script creates all of them.
+   `Rag.Query` on the RAG platform's API. A script the author keeps outside the repository creates all of them.
 3. For dedicated plans, the environment carries `GATEWAY_CLIENT_ID`, `GATEWAY_IDENTITY_ID`,
    `COSMOS_ACCOUNT_ID` and `OIDC_ISSUER`, all outputs of the deployment.
 

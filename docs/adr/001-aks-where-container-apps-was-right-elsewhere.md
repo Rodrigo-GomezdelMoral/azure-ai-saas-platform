@@ -1,10 +1,10 @@
-# ADR-001 · AKS here, when Container Apps was the right choice in the other three repositories
+# ADR-001 · AKS here, when Container Apps was the right choice elsewhere
 
 **Status:** accepted · **Date:** 2026-10-21
 
 ## Context
 
-The three other repositories of this portfolio run on Azure Container Apps and each one records why it
+The three other workloads on the shared platform run on Azure Container Apps and each one records why it
 rejected Kubernetes: one team, one tenant, one workload per environment, and a managed platform that
 scales to zero removes a control plane nobody needs to operate. Those rejections are only credible if
 there is a case where the reasoning reverses. This repository is that case: a hundred paying customers
@@ -44,13 +44,13 @@ what they promise.
 ## Trade-offs
 
 - AKS bills continuously. At rest the cluster is one system node, about 178 € a month with the shared
-  services around it (`docs/cost.md`); the other repositories cost nothing at rest. `az aks stop` and
+  services around it ([`docs/cost.md`](../cost.md)); the other workloads cost nothing at rest. `az aks stop` and
   `make destroy` are part of the documented workflow.
 - A control plane to operate: version upgrades, add-on lifecycles (the managed NGINX ingress is being
   retired, which is why the Gateway API implementation is used), node image updates. The cluster runs
   the `patch` upgrade channel and node image auto-upgrade to keep that to a minimum.
 - Free control-plane tier: no financially backed uptime SLA. The production posture for an Enterprise
-  tier is the Standard tier with availability zones (`docs/operations/slo.md`).
+  tier is the Standard tier with availability zones ([`docs/operations/slo.md`](../operations/slo.md)).
 
 ## Revisit when
 
