@@ -6,7 +6,6 @@ kubeconfig*
 *.kubeconfig
 .kube/
 .DS_Store
-.claude/
 __pycache__/
 *.pyc
 .venv/
